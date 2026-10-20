@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.8.0] - 2026-10-20
+
+### Agregado
+- Encuesta de socialización después de cada alerta enviada de forma individual (`sendPoll`, una respuesta): "🔴 Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?" con ✅ Recibida y socializada en mi servicio / ⏳ Recibida, pendiente por socializar (WhatsApp exige al menos 2 opciones). No va con el mensaje agrupado ni si la alerta falló; `ENCUESTA_ACTIVA = false` la apaga. Integrado desde `main` (copia del proyecto vivo) con `test/encuesta.js`.
+
 ## [1.7.0] - 2026-10-20
 
 ### Agregado

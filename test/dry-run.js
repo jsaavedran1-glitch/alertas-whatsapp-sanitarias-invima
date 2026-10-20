@@ -201,6 +201,8 @@ function crearEntorno(opciones = {}) {
   };
   vm.createContext(contexto);
   vm.runInContext(CODIGO, contexto);
+  // La encuesta de socializacion se prueba en test/encuesta.js y en las pruebas que pasan { encuesta: true }.
+  if (!opciones.encuesta) contexto.ENCUESTA_ACTIVA = false;
   return { g: contexto, registro, enviados, urlsInvima, hojas, props, estado, borrados, creados };
 }
 
@@ -588,6 +590,29 @@ prueba("texto mas largo que el pie permitido -> solo texto, sin descargar el PDF
   g.revisarAlertas();
   assert.strictEqual(enviados[0].url.split("/")[4], "sendMessage");
   assert.ok(!urlsInvima.some((u) => u.endsWith("No_331-2026.pdf")));
+});
+
+prueba("encuesta de socializacion despues de cada alerta individual (foto o texto), no en el agrupado", () => {
+  const e = entornoConAlertaMed({ encuesta: true });
+  e.g.revisarAlertas();
+  const metodos = e.enviados.map((x) => x.url.split("/")[4]);
+  assert.strictEqual(JSON.stringify(metodos), JSON.stringify(["sendFileByUpload", "sendPoll", "sendMessage", "sendPoll"]));
+  const poll = e.enviados[1].cuerpo;
+  assert.strictEqual(poll.chatId, "120363412506101174@g.us");
+  assert.strictEqual(poll.message, "\u{1F534} Alerta sanitaria No. 331-2026 (MED): ¿recibió y socializó esta información en su servicio?");
+  assert.strictEqual(poll.options[0].optionName, "\u2705 Recibida y socializada en mi servicio");
+  assert.strictEqual(poll.multipleAnswers, false);
+  const alta = (n) => filaMed("Alerta sanitaria sobre: OZEMPIC lote " + n, "Alerta%20No_" + n + "-2026.pdf");
+  const e2 = entornoListo({ encuesta: true });
+  e2.estado.paginas = { MED: [ENVOLTURA([710, 711, 712, 713, 714, 715, 716, 717].map(alta)), ENVOLTURA([718, 719, 720].map(alta))], DM: [ENVOLTURA([])] };
+  e2.g.revisarAlertas();
+  assert.ok(!e2.enviados.some((x) => x.url.includes("sendPoll")), "11 alertas: mensaje agrupado sin encuesta");
+});
+
+prueba("enviarPruebaAlerta con encuesta: mensaje de prueba + encuesta", () => {
+  const { g, enviados } = entornoListo({ encuesta: true });
+  g.enviarPruebaAlerta();
+  assert.deepStrictEqual(enviados.map((e) => e.url.split("/")[4]), ["sendMessage", "sendPoll"]);
 });
 
 prueba("extraerJpegsPdf_ encuentra los JPEG incrustados y elige la foto mas grande", () => {
