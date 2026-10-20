@@ -220,8 +220,9 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
   g.inicializarHoja();
   g.inicializarHoja();
   assert.deepStrictEqual(Object.keys(hojas).sort(),
-    ["Catalogo_HDV", "Config_Fuentes", "Historico", "Log", "Reglas", "Vigilancia"]);
-  assert.strictEqual(hojas.Reglas.d.length, 15);
+    ["Config_Fuentes", "Historico", "Listado_Terapeutico", "Log", "Reglas", "Vigilancia"]);
+  assert.strictEqual(hojas.Reglas.d.length, 1 + g.PRECARGA.Reglas.length);
+  assert.deepStrictEqual(hojas.Reglas.d[0], ["termino", "nivel", "motivo"]);
   assert.strictEqual(hojas.Config_Fuentes.d[2][1], "https://app.invima.gov.co/alertas/dispositivos-medicos-invima");
   assert.strictEqual(hojas.Historico.d[0].length, 12);
 });
@@ -229,7 +230,7 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
 function entornoListo(opciones) {
   const e = crearEntorno(opciones);
   e.g.inicializarHoja();
-  e.hojas.Catalogo_HDV.getRange(2, 1, 1, 5).setValues([["DM-0457", "Cemento óseo con gentamicina", "Gentamicina", "Palacos", "DM"]]);
+  e.hojas.Listado_Terapeutico.getRange(2, 1, 1, 5).setValues([["DM-0457", "Cemento óseo con gentamicina", "Gentamicina", "Palacos", "DM"]]);
   e.hojas.Vigilancia.getRange(2, 1, 1, 1).setValues([["Butilbromuro de hioscina"]]);
   return e;
 }
@@ -240,20 +241,21 @@ prueba("clasificacion ALTA / MEDIA / BAJA", () => {
   const med = g.parsearListado_(ENVOLTURA(MED_FILAS), "MED").map((it) => g.clasificar_(it, reglas));
   const dm = g.parsearListado_(ENVOLTURA(DM_FILAS), "DM").map((it) => g.clasificar_(it, reglas));
   assert.strictEqual(med[0].nivel, "BAJA");                 // sin coincidencias
-  assert.strictEqual(med[1].nivel, "MEDIA");                // FALSIFICACION / LOTE
+  assert.strictEqual(med[1].nivel, "ALTA");                 // BUSCAPINA: marca de uso frecuente
+  assert.strictEqual(med[1].coincidencia, "Uso frecuente: BUSCAPINA");
   assert.strictEqual(med[2].nivel, "BAJA");                 // CBD manda sobre "falsificado"
   assert.strictEqual(dm[0].nivel, "MEDIA");                 // informe de seguridad
-  assert.strictEqual(dm[1].nivel, "ALTA");                  // catalogo: gentamicina / Palacos
+  assert.strictEqual(dm[1].nivel, "ALTA");                  // Listado Terapeutico: gentamicina / Palacos
   assert.strictEqual(dm[1].coincidencia, "Cemento óseo con gentamicina (DM-0457)");
   assert.strictEqual(dm[2].nivel, "BAJA");
-  // El catalogo DM no aplica a MED.
+  // El Listado Terapeutico DM no aplica a MED.
   const medGenta = g.clasificar_(g.parsearListado_(ENVOLTURA([filaMed("Alerta sanitaria sobre: GENTAMICINA 80 MG", "Alerta%20No_1-2026.pdf")]), "MED")[0], reglas);
   assert.strictEqual(medGenta.nivel, "BAJA");
 });
 
-prueba("combinaciones y plurales en catalogo/Vigilancia", () => {
+prueba("combinaciones y plurales en Listado Terapeutico/Vigilancia", () => {
   const { g, hojas } = entornoListo();
-  hojas.Catalogo_HDV.getRange(3, 1, 2, 5).setValues([
+  hojas.Listado_Terapeutico.getRange(3, 1, 2, 5).setValues([
     ["MED-0101", "PIPERACILINA/TAZOBACTAM 4.5G AMP", "PIPERACILINA/TAZOBACTAM", "", "MED"],
     ["DM-0200", "CATETER VENOSO CENTRAL 7FR", "CATETER", "", "DM"]
   ]);
@@ -271,7 +273,7 @@ prueba("combinaciones y plurales en catalogo/Vigilancia", () => {
 
 prueba("lote dispensado -> ALTA; laboratorio proveedor -> MEDIA", () => {
   const { g, hojas } = entornoListo();
-  hojas.Catalogo_HDV.getRange(3, 1, 2, 8).setValues([
+  hojas.Listado_Terapeutico.getRange(3, 1, 2, 8).setValues([
     ["UT213718-2", "HIOSCINA N-B.BROMURO 10MG TAB", "HIOSCINA", "", "MED", "ANTIESPASMODICO", "F0537A; G00319A", "BOEHRINGER"],
     ["UT19959771-5", "ACETAMINOFEN TAB 500MG", "ACETAMINOFEN", "", "MED", "ANALGESICOS", "1234", "GENFAR; GLOBAL"]
   ]);
@@ -285,6 +287,14 @@ prueba("lote dispensado -> ALTA; laboratorio proveedor -> MEDIA", () => {
   assert.strictEqual(porLab.coincidencia, "Laboratorio proveedor HDV: GENFAR");
   assert.strictEqual(med("Alerta sanitaria sobre: GLOBAL NUTRITION capsulas").nivel, "BAJA", "laboratorio generico ignorado");
   assert.strictEqual(med("Alerta sanitaria sobre: producto 1234").nivel, "BAJA", "lote corto ignorado");
+});
+
+prueba("marca comercial de uso frecuente -> ALTA con su motivo", () => {
+  const { g } = entornoListo();
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const it = g.clasificar_(g.parsearListado_(ENVOLTURA([filaMed("Alerta sanitaria sobre: OZEMPIC® falsificado", "Alerta%20No_2-2026.pdf")]), "MED")[0], reglas);
+  assert.strictEqual(it.nivel, "ALTA");
+  assert.strictEqual(it.coincidencia, "Uso frecuente: OZEMPIC");
 });
 
 prueba("formato del mensaje inmediato", () => {

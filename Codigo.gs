@@ -18,7 +18,7 @@ var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje a
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
-var LONGITUD_MIN_TERMINO = 4;    // catalogo y Vigilancia: evita coincidencias espurias con nombres cortos
+var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coincidencias espurias con nombres cortos
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
 
 // Prefijos de LoteSerial que no identifican a un laboratorio o fabricante concreto.
@@ -47,8 +47,8 @@ var ENCABEZADOS = {
   Config_Fuentes: ["fuente", "url", "activa"],
   Historico: ["clave", "fuente", "numero", "anio", "titulo", "tipo", "fecha_publicada", "url_pdf",
     "fecha_deteccion", "nivel", "coincidencia", "enviado"],
-  Catalogo_HDV: ["codigo", "descripcion", "principio_activo", "marca", "tipo", "subgrupo", "lote", "laboratorio"],
-  Reglas: ["termino", "nivel"],
+  Listado_Terapeutico: ["codigo", "descripcion", "principio_activo", "marca", "tipo", "subgrupo", "lote", "laboratorio"],
+  Reglas: ["termino", "nivel", "motivo"],
   Vigilancia: ["principio_activo", "motivo"],
   Log: ["fecha", "fuente", "leidos", "nuevos", "enviados", "estado", "error"]
 };
@@ -56,10 +56,25 @@ var ENCABEZADOS = {
 var PRECARGA = {
   Config_Fuentes: FUENTES_DEFECTO.map(function(f) { return [f.fuente, f.url, "SI"]; }),
   Reglas: [
-    ["FALSIFICACIÓN", "MEDIA"], ["FALSIFICADO", "MEDIA"], ["FRAUDULENTO", "MEDIA"], ["LOTE", "MEDIA"],
-    ["RETIRO", "MEDIA"], ["RECALL", "MEDIA"], ["CALIDAD", "MEDIA"], ["CONTAMINACIÓN", "MEDIA"],
-    ["INFORME DE SEGURIDAD", "MEDIA"], ["DESABASTECIMIENTO", "MEDIA"],
-    ["COMERCIO ELECTRÓNICO", "BAJA"], ["SUPLEMENTO", "BAJA"], ["HOMEOPÁTICO", "BAJA"], ["CBD", "BAJA"]
+    ["FALSIFICACIÓN", "MEDIA", ""], ["FALSIFICADO", "MEDIA", ""], ["FRAUDULENTO", "MEDIA", ""], ["LOTE", "MEDIA", ""],
+    ["RETIRO", "MEDIA", ""], ["RECALL", "MEDIA", ""], ["CALIDAD", "MEDIA", ""], ["CONTAMINACIÓN", "MEDIA", ""],
+    ["INFORME DE SEGURIDAD", "MEDIA", ""], ["DESABASTECIMIENTO", "MEDIA", ""],
+    ["COMERCIO ELECTRÓNICO", "BAJA", ""], ["SUPLEMENTO", "BAJA", ""], ["HOMEOPÁTICO", "BAJA", ""], ["CBD", "BAJA", ""],
+    // Medicamentos comerciales de uso frecuente: ALTA aunque no esten en Listado_Terapeutico.
+    ["DOLEX", "ALTA", "Uso frecuente"], ["ADVIL", "ALTA", "Uso frecuente"], ["ASPIRINA", "ALTA", "Uso frecuente"], ["NOXPIRIN", "ALTA", "Uso frecuente"],
+    ["SEVEDOL", "ALTA", "Uso frecuente"], ["APRONAX", "ALTA", "Uso frecuente"], ["VOLTAREN", "ALTA", "Uso frecuente"], ["DOLOFEN", "ALTA", "Uso frecuente"],
+    ["WINADEINE", "ALTA", "Uso frecuente"], ["ZALDIAR", "ALTA", "Uso frecuente"], ["TRAMAL", "ALTA", "Uso frecuente"], ["BUSCAPINA", "ALTA", "Uso frecuente"],
+    ["ALKA-SELTZER", "ALTA", "Uso frecuente"], ["MAREOL", "ALTA", "Uso frecuente"], ["BISOLVON", "ALTA", "Uso frecuente"], ["ENTEROGERMINA", "ALTA", "Uso frecuente"],
+    ["PEDIALYTE", "ALTA", "Uso frecuente"], ["ELECTROLIT", "ALTA", "Uso frecuente"], ["NEXIUM", "ALTA", "Uso frecuente"], ["ENSURE", "ALTA", "Uso frecuente"],
+    ["GLUCERNA", "ALTA", "Uso frecuente"], ["AUGMENTIN", "ALTA", "Uso frecuente"], ["ROCEPHIN", "ALTA", "Uso frecuente"], ["KLARICID", "ALTA", "Uso frecuente"],
+    ["ZITROMAX", "ALTA", "Uso frecuente"], ["XARELTO", "ALTA", "Uso frecuente"], ["ELIQUIS", "ALTA", "Uso frecuente"], ["PLAVIX", "ALTA", "Uso frecuente"],
+    ["CRESTOR", "ALTA", "Uso frecuente"], ["GLUCOPHAGE", "ALTA", "Uso frecuente"], ["EUTIROX", "ALTA", "Uso frecuente"], ["LANTUS", "ALTA", "Uso frecuente"],
+    ["TOUJEO", "ALTA", "Uso frecuente"], ["NOVORAPID", "ALTA", "Uso frecuente"], ["HUMALOG", "ALTA", "Uso frecuente"], ["OZEMPIC", "ALTA", "Uso frecuente"],
+    ["SAXENDA", "ALTA", "Uso frecuente"], ["WEGOVY", "ALTA", "Uso frecuente"], ["MOUNJARO", "ALTA", "Uso frecuente"], ["VICTOZA", "ALTA", "Uso frecuente"],
+    ["RIVOTRIL", "ALTA", "Uso frecuente"], ["LYRICA", "ALTA", "Uso frecuente"], ["KEPPRA", "ALTA", "Uso frecuente"], ["VIAGRA", "ALTA", "Uso frecuente"],
+    ["CIALIS", "ALTA", "Uso frecuente"], ["HUMIRA", "ALTA", "Uso frecuente"], ["KEYTRUDA", "ALTA", "Uso frecuente"], ["HERCEPTIN", "ALTA", "Uso frecuente"],
+    ["AVASTIN", "ALTA", "Uso frecuente"], ["MABTHERA", "ALTA", "Uso frecuente"], ["PERJETA", "ALTA", "Uso frecuente"], ["KADCYLA", "ALTA", "Uso frecuente"],
+    ["PROLIA", "ALTA", "Uso frecuente"]
   ]
 };
 
@@ -420,13 +435,15 @@ function contieneTermino_(textoNorm, terminoNorm) {
 }
 
 function cargarReglas_(ss) {
-  var reglas = { ALTA: [], MEDIA: [], BAJA: [], catalogo: [], vigilancia: [] };
+  var reglas = { ALTA: [], MEDIA: [], BAJA: [], listado: [], vigilancia: [] };
   leerFilas_(ss.getSheetByName("Reglas")).forEach(function(r) {
     var nivel = normalizar_(r.nivel);
     var t = normTermino_(r.termino);
-    if (t && reglas[nivel]) reglas[nivel].push({ norm: t, texto: String(r.termino).trim() });
+    if (t && reglas[nivel]) {
+      reglas[nivel].push({ norm: t, texto: String(r.termino).trim(), motivo: String(r.motivo || "").trim() });
+    }
   });
-  leerFilas_(ss.getSheetByName("Catalogo_HDV")).forEach(function(c) {
+  leerFilas_(ss.getSheetByName("Listado_Terapeutico")).forEach(function(c) {
     var item = {
       terminos: terminosDe_(c.principio_activo).concat(terminosDe_(c.marca)),
       lotes: lotesDe_(c.lote),
@@ -434,7 +451,7 @@ function cargarReglas_(ss) {
       tipo: normalizar_(c.tipo),
       etiqueta: String(c.descripcion || c.principio_activo).trim() + (c.codigo ? " (" + c.codigo + ")" : "")
     };
-    if (item.terminos.length + item.lotes.length + item.laboratorios.length > 0) reglas.catalogo.push(item);
+    if (item.terminos.length + item.lotes.length + item.laboratorios.length > 0) reglas.listado.push(item);
   });
   leerFilas_(ss.getSheetByName("Vigilancia")).forEach(function(v) {
     terminosDe_(v.principio_activo).forEach(function(t) {
@@ -458,7 +475,7 @@ function laboratoriosDe_(texto) {
   });
 }
 
-// ALTA: catalogo HDV (principio activo, marca o lote dispensado), Vigilancia o regla ALTA.
+// ALTA: Listado Terapeutico HDV (principio activo, marca o lote dispensado), Vigilancia o regla ALTA.
 // BAJA: termino BAJA sin coincidencia ALTA.
 // MEDIA: termino MEDIA, tipo "Informe de seguridad" o laboratorio proveedor del HDV. BAJA: el resto.
 function clasificar_(it, reglas) {
@@ -466,7 +483,7 @@ function clasificar_(it, reglas) {
   var tLote = normalizar_(it.titulo); // los lotes se comparan sin singularizar
   var coincidencias = [];
   var laboratorios = [];
-  reglas.catalogo.forEach(function(c) {
+  reglas.listado.forEach(function(c) {
     if (c.tipo && c.tipo !== it.fuente) return;
     var lote = c.lotes.filter(function(l) { return contieneTermino_(tLote, l); })[0];
     if (lote) {
@@ -482,7 +499,7 @@ function clasificar_(it, reglas) {
     if (contieneTermino_(t, v.norm)) coincidencias.push("Vigilancia: " + v.texto);
   });
   reglas.ALTA.forEach(function(r) {
-    if (contieneTermino_(t, r.norm)) coincidencias.push("Regla: " + r.texto);
+    if (contieneTermino_(t, r.norm)) coincidencias.push((r.motivo || "Regla") + ": " + r.texto);
   });
   var hay = function(lista) { return lista.some(function(r) { return contieneTermino_(t, r.norm); }); };
   // Las coincidencias por lote van primero: son las mas especificas.

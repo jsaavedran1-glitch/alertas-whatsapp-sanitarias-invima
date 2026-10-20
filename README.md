@@ -19,7 +19,7 @@ flowchart TD
     D --> E["parsearListado_(html, fuente)"]
     E -->|0 ítems| F["Log + aviso técnico (1 por día)"]
     E --> G["Descarta claves ya en Historico"]
-    G --> H["clasificar_: Catalogo_HDV / Vigilancia / Reglas"]
+    G --> H["clasificar_: Listado_Terapeutico / Vigilancia / Reglas"]
     H -->|ALTA / MEDIA| I["Historico = PENDIENTE → GREEN-API → SI / ERROR / NO_ENVIADO_466"]
     H -->|BAJA| J["Historico = RESUMEN_SEMANAL"]
     J --> K["resumenSemanal() lunes 7 h"]
@@ -60,7 +60,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 3. Cargar las propiedades del script (tabla anterior), con `GA_CHAT_ID` = PRUEBA BOT.
 4. Ejecutar, en este orden, verificando en el selector la función antes de pulsar "Ejecutar":
    1. **`inicializarHoja()`**: crea las pestañas con encabezados; precarga `Config_Fuentes` y `Reglas`. No modifica pestañas que ya tienen datos.
-   2. Cargar `Catalogo_HDV` y `Vigilancia` en la hoja.
+   2. Cargar `Listado_Terapeutico` y `Vigilancia` en la hoja.
    3. **`cargaInicial()`**: lee 5 páginas por fuente y llena el `Historico` con `enviado = CARGA_INICIAL`, **sin enviar mensajes**. Evita que el primer día se disparen alertas viejas. **Obligatorio antes de activar disparadores.**
    4. **`probarSinEnviar()`**: ejecuta todo el flujo y escribe los mensajes en el registro de ejecución (`[SIMULADO - no enviado]`), sin enviar ni escribir en `Historico`. Incluye el texto del resumen semanal.
    5. **`instalarDisparadores()`**: borra los disparadores del proyecto y crea los del bot.
@@ -72,18 +72,18 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 |---|---|---|
 | `Config_Fuentes` | fuente, url, activa | Precargada (MED, DM). Editable. |
 | `Historico` | clave, fuente, numero, anio, titulo, tipo, fecha_publicada, url_pdf, fecha_deteccion, nivel, coincidencia, enviado | El bot. |
-| `Catalogo_HDV` | codigo, descripcion, principio_activo, marca, tipo (MED/DM), subgrupo, lote, laboratorio | Cargado desde `DTSUMINISTRO` (ver abajo). Editable. |
-| `Aux_Productos` | Productos distintos y pares producto–LoteSerial de `DTSUMINISTRO`, con laboratorio y lote separados | Fórmulas. No borrar: `Catalogo_HDV` lee de aquí lote y laboratorio. |
-| `Reglas` | termino, nivel (ALTA/MEDIA/BAJA) | Precargada. Editable. |
+| `Listado_Terapeutico` | codigo, descripcion, principio_activo, marca, tipo (MED/DM), subgrupo, lote, laboratorio | Cargado desde `DTSUMINISTRO` (ver abajo). Editable. |
+| `Aux_Productos` | Productos distintos y pares producto–LoteSerial de `DTSUMINISTRO`, con laboratorio y lote separados | Fórmulas. No borrar: `Listado_Terapeutico` lee de aquí lote y laboratorio. |
+| `Reglas` | termino, nivel (ALTA/MEDIA/BAJA), motivo | Precargada: términos MEDIA/BAJA y 53 marcas comerciales de medicamentos de uso frecuente (ALTA, motivo "Uso frecuente"). Editable. |
 | `Vigilancia` | principio_activo, motivo | Precargada con antimicrobianos PROA y medicamentos de control especial del catálogo. Editable. |
 | `Log` | fecha, fuente, leidos, nuevos, enviados, estado, error | El bot. |
 
-### Catálogo HDV desde `DTSUMINISTRO`
+### Listado Terapéutico de Medicamentos y Dispositivos Médicos (desde `DTSUMINISTRO`)
 
 - **codigo, descripcion, subgrupo:** productos distintos dispensados (pestaña `DTSUMINISTRO`, 1.212 productos: 503 MED, 709 DM).
 - **principio_activo (MED):** texto de `NombreProducto` antes de la concentración o forma farmacéutica, sin sales; combinaciones con `+` o `/` (p. ej. `PIPERACILINA/TAZOBACTAM`), que el bot separa en términos.
 - **principio_activo (DM):** nombre genérico del dispositivo (`CATETER`, `SONDA`, `SUTURA`…). **marca:** marcas comerciales reconocibles (`AQUACEL`, `PROLENE`, `BUSCAPINA`…).
-- **lote y laboratorio:** fórmulas (`BYROW`) sobre `Aux_Productos`, que separa `LoteSerial` (`LABORATORIO-LOTE-...`). Se actualizan solas si se reemplaza el contenido de `DTSUMINISTRO`. Los productos nuevos de un mes posterior sí deben agregarse como filas en `Catalogo_HDV`.
+- **lote y laboratorio:** fórmulas (`BYROW`) sobre `Aux_Productos`, que separa `LoteSerial` (`LABORATORIO-LOTE-...`). Se actualizan solas si se reemplaza el contenido de `DTSUMINISTRO`. Los productos nuevos de un mes posterior sí deben agregarse como filas en `Listado_Terapeutico`.
 - El bot ignora lotes de menos de 5 caracteres o sin dígitos y prefijos genéricos de laboratorio (`GLOBAL`, `LIFE`, `AMERICAN`…; lista `LABORATORIOS_GENERICOS` en `Codigo.gs`).
 
 Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `NO_ENVIADO_466`, `RESUMEN_SEMANAL` (BAJA), `CARGA_INICIAL`. Ninguna clave se reintenta: si queda `ERROR` o `NO_ENVIADO_466`, revisarla manualmente.
@@ -93,11 +93,11 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 - **Clave única:** `FUENTE:TIPO:NUMERO-AÑO`, con TIPO `AS` (alerta sanitaria) o `IS` (informe de seguridad), p. ej. `MED:AS:330-2026`, `DM:IS:148-2026`. El número se extrae del nombre del PDF (`No_ #355-2026`). Si no hay número, la clave es `FUENTE:url_pdf`.
 - **La fecha del listado no es confiable** (alertas 2026 con fecha 2016-10-14): nunca se filtra por fecha.
 - **Clasificación** (mayúsculas, sin tildes, por palabras completas, sobre el título):
-  - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Catalogo_HDV` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia`, o con una regla ALTA. La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
+  - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Listado_Terapeutico` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia`, o con una regla ALTA (p. ej. una marca comercial de uso frecuente: `Uso frecuente: OZEMPIC`). La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
   - ⚪ **BAJA:** contiene un término BAJA y no tiene coincidencias ALTA.
   - 🟠 **MEDIA:** contiene un término MEDIA, es un informe de seguridad, o nombra un **laboratorio proveedor** del HDV (`Laboratorio proveedor HDV: GENFAR`).
   - ⚪ **BAJA:** el resto.
-  - En catálogo y Vigilancia se ignoran términos de menos de 4 caracteres (evita falsos positivos). En `Reglas` no hay mínimo (p. ej. `CBD`).
+  - En el Listado Terapéutico y en Vigilancia se ignoran términos de menos de 4 caracteres (evita falsos positivos). En `Reglas` no hay mínimo (p. ej. `CBD`).
   - Se toleran plurales (`CATÉTERES` coincide con `CATETER`).
   - La coincidencia es solo sobre el **título** del listado: si INVIMA nombra el lote únicamente dentro del PDF, no se detecta (esta versión no lee PDF).
 - **Envío:** ALTA y MEDIA de inmediato (ALTA primero), 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. BAJA solo en el resumen semanal.
@@ -118,8 +118,8 @@ PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
 ## Cómo agregar fuentes o reglas
 
 - **Fuente nueva:** agregar una fila en `Config_Fuentes` (`fuente` corta en mayúsculas, p. ej. `COS`; `url` del listado sin `?page`; `activa` = `SI`). El prefijo del mensaje será `[INVIMA-COS]`. Antes, comprobar el listado con `probarAcceso()`/`volcarMuestraHtml()` y ejecutar `cargaInicial()` para no disparar el histórico de esa fuente. Para desactivar una fuente: `activa` = `NO`.
-- **Regla nueva:** fila en `Reglas` con `termino` y `nivel`. Se aplica en la siguiente ejecución.
-- **Medicamento o dispositivo del HDV:** fila en `Catalogo_HDV`. **Vigilancia:** fila en `Vigilancia`.
+- **Regla nueva:** fila en `Reglas` con `termino`, `nivel` y, opcionalmente, `motivo` (se muestra en el mensaje, p. ej. `Uso frecuente: DOLEX`). Se aplica en la siguiente ejecución.
+- **Medicamento o dispositivo del HDV:** fila en `Listado_Terapeutico`. **Vigilancia:** fila en `Vigilancia`.
 
 ## Funciones
 
