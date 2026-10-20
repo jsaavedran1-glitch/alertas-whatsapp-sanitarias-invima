@@ -747,7 +747,7 @@ function enviarAlerta_(mensaje, it, enviarReal) {
 // "<rojo> Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?"
 function preguntaEncuesta_(it) {
   return emojiNivel_(it.nivel) + " " + encabezado_(it) + " (" + it.fuente + "): " +
-    "¿recibió y socializó esta información en su servicio?";
+    "\u00bfrecibi\u00f3 y socializ\u00f3 esta informaci\u00f3n en su servicio?";
 }
 
 function opcionesEncuesta_() {
