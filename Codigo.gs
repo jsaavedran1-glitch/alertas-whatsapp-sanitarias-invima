@@ -15,20 +15,13 @@ var USER_AGENT = "HDV-ESE-ServicioFarmaceutico-AlertasINVIMA/1.0 (Apps Script; V
 var BASE_INVIMA = "https://app.invima.gov.co";
 
 var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
-var MAX_MENSAJES = 10;           // por ejecucion, contando encuestas; si hay mas, un solo mensaje agrupado
+var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje agrupado
 
-// Encuesta de WhatsApp que se envia despues de cada alerta ALTA (solo en envio individual): acuse de
-// socializacion en cada servicio. "Ver votos" en WhatsApp muestra quien confirmo y cuando.
-var ENCUESTA_ALTA = true;
 // Foto del producto (extraida del PDF) con el texto de la alerta al pie. Solo MED: en el
 // diagnostico de 80 alertas, 39 de 40 de medicamentos traen foto; las de DM solo la plantilla.
 var FOTO_EN_ALERTAS = true;
 var FUENTES_CON_FOTO = ["MED"];
 var MAX_CARACTERES_PIE = 1024;    // si el texto es mas largo, la alerta sale solo como texto
-var OPCIONES_ENCUESTA = [
-  String.fromCodePoint(0x2705) + " Recibida y socializada en mi servicio",
-  String.fromCodePoint(0x2753) + " Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408"
-];           // por ejecucion; si hay mas, un solo mensaje agrupado
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
@@ -165,10 +158,10 @@ function vistaPrevia() {
   });
 }
 
-// ENVIA DE VERDAD a GA_CHAT_ID un mensaje de prueba (con la foto del producto si es MED) y su
-// encuesta, con la primera alerta ALTA de la pagina 0 (o la primera alerta si no hay ALTA).
+// ENVIA DE VERDAD a GA_CHAT_ID un mensaje de prueba (con la foto del producto si es MED) con la
+// primera alerta ALTA de la pagina 0 (o la primera alerta si no hay ALTA).
 // No escribe en el Historico. Usar solo con PRUEBA BOT.
-function enviarPruebaEncuesta() {
+function enviarPruebaAlerta() {
   var ss = abrirHoja_();
   var reglas = cargarReglas_(ss);
   var candidata = null;
@@ -190,10 +183,6 @@ function enviarPruebaEncuesta() {
   var mensaje = emoji_(0x1F9EA) + " *MENSAJE DE PRUEBA* (no es una alerta nueva)\n\n" + formatearMensaje_(candidata);
   var r = enviarAlerta_(mensaje, candidata, true);
   Logger.log("Mensaje: %s", r.ok ? "enviado" + (r.foto ? " con foto" : " como texto") : "NO enviado (" + (r.error || "") + ")");
-  if (!r.ok) return;
-  Utilities.sleep(ESPERA_MENSAJES_MS);
-  var re = enviarEncuesta_(preguntaEncuesta_(candidata), OPCIONES_ENCUESTA, true);
-  Logger.log("Encuesta: %s", re.ok ? "enviada" : "NO enviada (" + (re.error || "") + ")");
 }
 
 // Resumen semanal (disparador lunes 7:00).
@@ -293,14 +282,10 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
     SpreadsheetApp.flush();
   }
 
-  // Envio individual (con encuesta en las ALTA) solo si el total de mensajes cabe en MAX_MENSAJES.
-  var encuestas = ENCUESTA_ALTA ? inmediatos.filter(function(it) { return it.nivel === "ALTA"; }).length : 0;
-  var lotes = (inmediatos.length + encuestas <= MAX_MENSAJES)
-    ? inmediatos.map(function(it) {
-        return { mensaje: formatearMensaje_(it), items: [it], foto: true,
-          encuesta: (ENCUESTA_ALTA && it.nivel === "ALTA") ? preguntaEncuesta_(it) : null };
-      })
-    : [{ mensaje: formatearAgrupado_(inmediatos), items: inmediatos, encuesta: null }];
+  // Envio individual solo si el total de mensajes cabe en MAX_MENSAJES.
+  var lotes = (inmediatos.length <= MAX_MENSAJES)
+    ? inmediatos.map(function(it) { return { mensaje: formatearMensaje_(it), items: [it], foto: true }; })
+    : [{ mensaje: formatearAgrupado_(inmediatos), items: inmediatos, foto: false }];
 
   var cuotaAgotada = false;
   lotes.forEach(function(lote, i) {
@@ -318,11 +303,6 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
           reg.estado = r.cuota ? "CUOTA_466" : "ERROR_ENVIO";
           reg.error = r.error || "";
         });
-      } else if (lote.encuesta) {
-        Utilities.sleep(ESPERA_MENSAJES_MS);
-        var re = enviarEncuesta_(lote.encuesta, OPCIONES_ENCUESTA, modo.enviar);
-        if (re.cuota) cuotaAgotada = true;
-        if (!re.ok) registros[lote.items[0].fuente].error = "Encuesta no enviada: " + (re.error || "");
       }
     }
     lote.items.forEach(function(it) {
@@ -761,23 +741,6 @@ function fotoProducto_(it) {
 
 function nombreFoto_(it) {
   return String(it.clave).replace(/[^A-Za-z0-9-]+/g, "_") + ".jpg";
-}
-
-// Encuesta de WhatsApp (sendPoll) al mismo GA_CHAT_ID, con una sola respuesta por persona.
-function enviarEncuesta_(pregunta, opciones, enviarReal) {
-  if (!enviarReal) {
-    Logger.log("[SIMULADO - encuesta no enviada]\n%s\n%s", pregunta, opciones.map(function(o) { return "( ) " + o; }).join("\n"));
-    return { ok: true, simulado: true };
-  }
-  return llamarGreenApi_("sendPoll", {
-    message: pregunta,
-    options: opciones.map(function(o) { return { optionName: o }; }),
-    multipleAnswers: false
-  });
-}
-
-function preguntaEncuesta_(it) {
-  return emoji_(0x1F534) + " " + encabezado_(it) + " (" + it.fuente + "): ¿recibió y socializó esta información en su servicio?";
 }
 
 // Unica salida hacia GREEN-API: siempre al GA_CHAT_ID (grupo), maneja el 466 sin reintentar.

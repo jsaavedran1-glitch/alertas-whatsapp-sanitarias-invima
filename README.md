@@ -104,10 +104,10 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
   - En `principio_activo` se pueden poner varios términos separados por `;` (p. ej. `PLACA DE OSTEOSINTESIS; PLACA BLOQUEADA`). Use términos específicos: una palabra suelta como `PLACA` o `BALON` coincide también con "placas de Petri" o "tubo con balón".
   - La coincidencia es solo sobre el **título** del listado: si INVIMA nombra el lote únicamente dentro del PDF, no se detecta (esta versión no lee PDF).
 - **Envío:** ALTA y MEDIA de inmediato (ALTA primero), 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. BAJA solo en el resumen semanal.
-- **Encuesta en alertas 🔴 ALTA:** después de cada alerta ALTA se envía al mismo grupo una encuesta de WhatsApp (`sendPoll`, una respuesta por persona): acuse de socialización "🔴 Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?" con las opciones ✅ Recibida y socializada en mi servicio / ❓ Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408. "Ver votos" en WhatsApp muestra quién confirmó y cuándo (soporte para el comité). Las opciones de una encuesta no admiten enlaces: el acceso directo al chat del QF va en la alerta (`CONTACTO_DUDAS`, enlace `wa.me`, sin envío ni consumo de cuota). Las encuestas cuentan dentro del máximo de 10 mensajes: si alertas + encuestas superan 10, se envía solo el mensaje agrupado, sin encuestas. Se desactiva con `ENCUESTA_ALTA = false` y las opciones se editan en `OPCIONES_ENCUESTA` (`Codigo.gs`). Las respuestas quedan en el grupo; el bot no las lee.
+- **Contacto para dudas:** cada alerta termina con `❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408` (`CONTACTO_DUDAS`): el enlace abre el chat del QF, sin envío ni consumo de cuota.
 - **Listado ilegible** (HTTP ≠ 200 o 0 ítems en `page=0`): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
 - **Foto del producto (solo MED):** cada alerta individual de medicamentos se envía como la foto del producto extraída del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si el PDF no descarga, no trae foto, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. DM siempre como texto: sus PDF solo traen las imágenes de la plantilla (diagnóstico del 20/10/2026: MED 39 de 40 con foto, DM 0 de 26). Se desactiva con `FOTO_EN_ALERTAS = false`.
-- **GREEN-API:** solo `sendMessage`, `sendFileByUpload` y `sendPoll` a `GA_CHAT_ID`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
+- **GREEN-API:** solo `sendMessage` y `sendFileByUpload` a `GA_CHAT_ID`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
 
 ## Formato del mensaje
 
@@ -151,7 +151,7 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `probarSinEnviar()` | Flujo completo simulado | No |
 | `instalarDisparadores()` | Recrea los disparadores | No |
 | `revisarAlertas()` | Función principal | **Sí** |
-| `enviarPruebaEncuesta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba (con la foto del producto si es MED) y su encuesta, con una alerta ALTA real; no escribe en la hoja | **Sí** (2 mensajes) |
+| `enviarPruebaAlerta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba (con la foto del producto si es MED), con una alerta ALTA real; no escribe en la hoja | **Sí** (1 mensaje) |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
 | `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |

@@ -392,15 +392,8 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
     filaMed("Alerta sanitaria sobre: PRODUCTO HOMEOPÁTICO X", "Alerta%20No_332-2026.pdf")
   ]));
   g.revisarAlertas();
-  assert.strictEqual(enviados.length, 2, "alerta ALTA + su encuesta");
+  assert.strictEqual(enviados.length, 1, "solo la alerta ALTA, sin encuesta");
   assert.strictEqual(enviados[0].cuerpo.chatId, "120363412506101174@g.us");
-  assert.ok(enviados[1].url.includes("/sendPoll/"));
-  assert.strictEqual(enviados[1].cuerpo.chatId, "120363412506101174@g.us");
-  assert.ok(enviados[1].cuerpo.message.includes("Alerta sanitaria No. 331-2026 (MED): ¿recibió y socializó esta información en su servicio?"));
-  assert.strictEqual(enviados[1].cuerpo.options.length, 2);
-  assert.ok(enviados[1].cuerpo.options.every((o) => o.optionName.length <= 100), "WhatsApp: opciones de hasta 100 caracteres");
-  assert.ok(enviados[1].cuerpo.options[1].optionName.includes("3245844408"));
-  assert.strictEqual(enviados[1].cuerpo.multipleAnswers, false);
   assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"));
   assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));
   assert.ok(enviados[0].cuerpo.message.includes("\u2753 Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408\n\n_Bot Alertas INVIMA"));
@@ -408,9 +401,9 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
   assert.strictEqual(porClave["MED:AS:332-2026"].enviado, "RESUMEN_SEMANAL");
   g.revisarAlertas();
-  assert.strictEqual(enviados.length, 2, "ninguna clave se envia dos veces");
+  assert.strictEqual(enviados.length, 1, "ninguna clave se envia dos veces");
   const resumen = g.resumenSemanal();
-  assert.strictEqual(enviados.length, 3);
+  assert.strictEqual(enviados.length, 2);
   assert.ok(resumen.includes("\u{1F48A} Medicamento: \u{1F534} 1 · \u{1F7E0} 0 · ⚪ 1"));
   assert.ok(resumen.includes("PRODUCTO HOMEOPÁTICO X"));
   assert.ok(!resumen.includes("ETHIOPIAN"), "la carga inicial no entra al resumen");
@@ -452,35 +445,28 @@ prueba("mas de 10 alertas inmediatas -> un solo mensaje agrupado", () => {
   assert.ok(hojas.Historico.filas().every((f) => f.enviado === "SI"));
 });
 
-prueba("encuestas: solo ALTA, cuentan en el maximo de 10 mensajes", () => {
-  const { g, enviados, estado, registro } = entornoListo();
-  estado.html.DM = ENVOLTURA([]);
+prueba("sin encuestas: 10 alertas van individuales, 11 se agrupan", () => {
   const alta = (n) => filaMed("Alerta sanitaria sobre: OZEMPIC lote " + n, "Alerta%20No_" + n + "-2026.pdf");
-  const media = (n) => filaMed("Alerta sanitaria sobre: RETIRO PRODUCTO " + n, "Alerta%20No_" + n + "-2026.pdf");
-  estado.html.MED = ENVOLTURA([alta(601), media(602)]);
-  g.revisarAlertas();
-  const sinAviso = enviados.filter((e) => !e.cuerpo.message.includes("No se pudo leer"));
-  assert.deepStrictEqual(sinAviso.map((e) => e.url.split("/")[4]), ["sendMessage", "sendPoll", "sendMessage"]);
-  // 5 ALTA + 1 MEDIA = 6 mensajes + 5 encuestas = 11 > 10 -> un solo mensaje agrupado, sin encuestas
+  const e1 = entornoListo();
+  e1.estado.html.DM = ENVOLTURA([]);
+  e1.estado.paginas = { MED: [ENVOLTURA([600, 601, 602, 603, 604, 605, 606, 607].map(alta)), ENVOLTURA([608, 609].map(alta))], DM: [ENVOLTURA([])] };
+  e1.g.revisarAlertas();
+  const envios1 = e1.enviados.filter((e) => !String(e.cuerpo.message || "").includes("No se pudo leer"));
+  assert.strictEqual(envios1.length, 10);
+  assert.ok(envios1.every((e) => e.url.split("/")[4] === "sendMessage"));
   const e2 = entornoListo();
-  e2.estado.html.DM = ENVOLTURA([]);
-  e2.estado.html.MED = ENVOLTURA([alta(611), alta(612), alta(613), alta(614), alta(615), media(616)]);
+  e2.estado.paginas = { MED: [ENVOLTURA([610, 611, 612, 613, 614, 615, 616, 617].map(alta)), ENVOLTURA([618, 619, 620].map(alta))], DM: [ENVOLTURA([])] };
   e2.g.revisarAlertas();
-  const envios2 = e2.enviados.filter((e) => !e.cuerpo.message.includes("No se pudo leer"));
+  const envios2 = e2.enviados.filter((e) => !String(e.cuerpo.message || "").includes("No se pudo leer"));
   assert.strictEqual(envios2.length, 1);
-  assert.ok(envios2[0].cuerpo.message.includes("*6 alertas nuevas ALTA/MEDIA*"));
-  // probarSinEnviar simula la encuesta en el registro
-  const e3 = entornoListo();
-  e3.estado.html.MED = ENVOLTURA([alta(621)]);
-  e3.g.probarSinEnviar();
-  assert.strictEqual(e3.enviados.length, 0);
-  assert.ok(e3.registro.some((l) => l.includes("[SIMULADO - encuesta no enviada]") && l.includes("( ) \u2705 Recibida y socializada en mi servicio")));
+  assert.ok(envios2[0].cuerpo.message.includes("*11 alertas nuevas ALTA/MEDIA*"));
+  assert.ok(!e2.enviados.some((e) => e.url.includes("sendPoll")));
 });
 
-prueba("enviarPruebaEncuesta envia 1 mensaje marcado como prueba + 1 encuesta, sin escribir", () => {
+prueba("enviarPruebaAlerta envia 1 mensaje marcado como prueba, sin encuesta ni escritura", () => {
   const { g, hojas, enviados } = entornoListo();
-  g.enviarPruebaEncuesta();
-  assert.deepStrictEqual(enviados.map((e) => e.url.split("/")[4]), ["sendMessage", "sendPoll"]);
+  g.enviarPruebaAlerta();
+  assert.deepStrictEqual(enviados.map((e) => e.url.split("/")[4]), ["sendMessage"]);
   assert.ok(enviados[0].cuerpo.message.startsWith("\u{1F9EA} *MENSAJE DE PRUEBA*"));
   assert.ok(enviados[0].cuerpo.message.includes("*PRIORIDAD ALTA*"));
   assert.ok(enviados.every((e) => e.cuerpo.chatId === "120363412506101174@g.us"));
@@ -514,7 +500,7 @@ prueba("alerta MED con foto: sendFileByUpload al servidor de medios con el texto
   const { g, hojas, enviados, urlsInvima } = entornoConAlertaMed();
   g.revisarAlertas();
   const metodos = enviados.map((e) => e.url.split("/")[4]);
-  assert.strictEqual(JSON.stringify(metodos), JSON.stringify(["sendFileByUpload", "sendPoll", "sendMessage", "sendPoll"]));
+  assert.strictEqual(JSON.stringify(metodos), JSON.stringify(["sendFileByUpload", "sendMessage"]));
   const foto = enviados[0];
   assert.ok(foto.url.startsWith("https://7107.media.greenapi.com/waInstance710722693364/sendFileByUpload/"));
   assert.strictEqual(foto.contentType, undefined, "multipart, no JSON");
@@ -523,7 +509,7 @@ prueba("alerta MED con foto: sendFileByUpload al servidor de medios con el texto
   assert.strictEqual(foto.cuerpo.fileName, "MED_AS_331-2026.jpg");
   assert.strictEqual(foto.cuerpo.file.tipo, "image/jpeg");
   assert.strictEqual(foto.cuerpo.file.bytes.length, 59004, "la foto, no el banner");
-  assert.ok(enviados[2].cuerpo.message.startsWith("[INVIMA-DM]"));
+  assert.ok(enviados[1].cuerpo.message.startsWith("[INVIMA-DM]"));
   assert.ok(!urlsInvima.some((u) => u.includes("Dispositivos_Medicos") && u.endsWith(".pdf")), "no descarga PDF de DM");
   const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
@@ -534,7 +520,7 @@ prueba("si la foto falla se envia como texto; sin PDF tambien; 466 en la foto no
   e.estado.falloFoto = 500;
   e.g.revisarAlertas();
   assert.strictEqual(JSON.stringify(e.enviados.slice(0, 3).map((x) => x.url.split("/")[4])),
-    JSON.stringify(["sendFileByUpload", "sendMessage", "sendPoll"]));
+    JSON.stringify(["sendFileByUpload", "sendMessage", "sendMessage"]));
   assert.ok(e.enviados[1].cuerpo.message.startsWith("[INVIMA-MED]"));
 
   e = entornoConAlertaMed();

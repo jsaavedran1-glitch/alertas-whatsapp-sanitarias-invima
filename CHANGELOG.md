@@ -2,6 +2,12 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.6.0] - 2026-10-20
+
+### Quitado
+- Encuesta (`sendPoll`) después de las alertas 🔴, a pedido del referente. Las dudas se canalizan con el enlace `wa.me` al chat del QF al final de cada alerta. El máximo de 10 mensajes por ejecución ya no cuenta encuestas.
+- `enviarPruebaEncuesta()` pasa a ser `enviarPruebaAlerta()` (un solo mensaje).
+
 ## [1.5.0] - 2026-10-20
 
 ### Agregado
