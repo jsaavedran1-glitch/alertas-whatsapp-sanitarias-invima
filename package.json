@@ -4,6 +4,6 @@
   "private": true,
   "description": "Bot de alertas sanitarias INVIMA para el HDV E.S.E. (Google Apps Script). Pruebas locales sin credenciales.",
   "scripts": {
-    "test": "node test/dry-run.js && node test/encuesta.js"
+    "test": "node test/dry-run.js"
   }
 }

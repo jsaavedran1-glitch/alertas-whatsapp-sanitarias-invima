@@ -6,8 +6,8 @@
 //
 // Funciones publicas (orden de puesta en marcha):
 //   inicializarHoja() -> cargaInicial() -> probarSinEnviar() -> instalarDisparadores()
-// Operacion: revisarAlertas() y resumenSemanal() (por disparador). Cada alerta individual va
-// seguida de una encuesta de socializacion (ver ENCUESTA_ACTIVA / OPCIONES_ENCUESTA).
+// Operacion: revisarAlertas() y resumenSemanal() (por disparador). Cada alerta pide confirmar la
+// socializacion reaccionando con el check verde al mensaje (ver lineaConfirmacion_).
 // Diagnostico (sin WhatsApp): probarAcceso(), volcarMuestraHtml(), vistaPrevia(), diagnosticarImagenesPdf().
 // =====================================================================
 
@@ -17,15 +17,6 @@ var BASE_INVIMA = "https://app.invima.gov.co";
 
 var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
 var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje agrupado
-
-// Encuesta de socializacion: despues de cada alerta enviada de forma individual se envia una
-// encuesta de WhatsApp (sendPoll) para que cada servicio confirme que la recibio y socializo.
-// WhatsApp exige al menos 2 opciones. No se envia con el mensaje agrupado (> MAX_MENSAJES).
-var ENCUESTA_ACTIVA = true;
-var OPCIONES_ENCUESTA = [
-  [0x2705, "Recibida y socializada en mi servicio"],
-  [0x23F3, "Recibida, pendiente por socializar"]
-];
 
 // Foto del producto (extraida del PDF) con el texto de la alerta al pie. Solo MED: en el
 // diagnostico de 80 alertas, 39 de 40 de medicamentos traen foto; las de DM solo la plantilla.
@@ -193,11 +184,6 @@ function enviarPruebaAlerta() {
   var mensaje = emoji_(0x1F9EA) + " *MENSAJE DE PRUEBA* (no es una alerta nueva)\n\n" + formatearMensaje_(candidata);
   var r = enviarAlerta_(mensaje, candidata, true);
   Logger.log("Mensaje: %s", r.ok ? "enviado" + (r.foto ? " con foto" : " como texto") : "NO enviado (" + (r.error || "") + ")");
-  if (r.ok) {
-    Utilities.sleep(ESPERA_MENSAJES_MS);
-    var e = enviarEncuesta_(candidata, true);
-    Logger.log("Encuesta: %s", e.ok ? "enviada" : "NO enviada (" + (e.error || "") + ")");
-  }
 }
 
 // Resumen semanal (disparador lunes 7:00).
@@ -312,11 +298,6 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
       var r = lote.foto ? enviarAlerta_(lote.mensaje, lote.items[0], modo.enviar) : enviarWhatsApp_(lote.mensaje, modo.enviar);
       if (r.cuota) cuotaAgotada = true;
       estado = r.ok ? ENVIADO.SI : (r.cuota ? ENVIADO.CUOTA : ENVIADO.ERROR);
-      // La encuesta no cambia el estado de la alerta: si falla, la alerta ya quedo enviada.
-      if (r.ok && lote.items.length === 1) {
-        Utilities.sleep(ESPERA_MENSAJES_MS);
-        if (enviarEncuesta_(lote.items[0], modo.enviar).cuota) cuotaAgotada = true;
-      }
       if (!r.ok) {
         lote.items.forEach(function(it) {
           var reg = registros[it.fuente];
@@ -632,11 +613,19 @@ var E = {
   ENLACE: 0x1F517,     // enlace
   RESUMEN: 0x1F4CA,    // grafico
   REVISAR: 0x1F50E,    // lupa
-  DUDAS: 0x2753        // signo de pregunta
+  DUDAS: 0x2753,       // signo de pregunta
+  CONFIRMAR: 0x2705    // check verde
 };
 
 // Contacto para dudas: enlace wa.me que abre el chat del QF (no envia nada ni consume cuota).
 var CONTACTO_DUDAS = { nombre: "QF Juan Pablo Saavedra HDV", wa: "573245844408" };
+
+// Confirmacion de socializacion: en vez de encuesta (WhatsApp exige al menos 2 opciones), cada
+// servicio reacciona con el check verde al mensaje; las reacciones muestran quien confirmo.
+function lineaConfirmacion_() {
+  return emoji_(E.CONFIRMAR) + " Confirme que recibi\u00f3 y socializ\u00f3 esta informaci\u00f3n en su servicio reaccionando con " +
+    emoji_(E.CONFIRMAR) + " a este mensaje.";
+}
 
 function lineaContacto_() {
   return emoji_(E.DUDAS) + " Dudas: " + CONTACTO_DUDAS.nombre + " · https://wa.me/" + CONTACTO_DUDAS.wa;
@@ -689,7 +678,7 @@ function formatearMensaje_(it) {
     lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
     it.coincidencia.split("; ").forEach(function(c) { lineas.push("• " + c); });
   }
-  lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, lineaContacto_(), "", firma_());
+  lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, "", lineaConfirmacion_(), lineaContacto_(), "", firma_());
   return lineas.join("\n");
 }
 
@@ -702,7 +691,7 @@ function formatearAgrupado_(items) {
     if (it.coincidencia) lineas.push(emoji_(E.HDV) + " " + it.coincidencia.split("; ")[0]);
     lineas.push(emoji_(E.ENLACE) + " " + it.url);
   });
-  lineas.push("", lineaContacto_(), "", firma_());
+  lineas.push("", lineaConfirmacion_(), lineaContacto_(), "", firma_());
   return lineas.join("\n");
 }
 
@@ -741,32 +730,6 @@ function enviarAlerta_(mensaje, it, enviarReal) {
   Logger.log("[%s] Foto no enviada (%s); se envia como texto.", it.clave, r.error || "");
   Utilities.sleep(ESPERA_MENSAJES_MS);
   return enviarWhatsApp_(mensaje, enviarReal);
-}
-
-// Pregunta de la encuesta, p. ej.:
-// "<rojo> Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?"
-function preguntaEncuesta_(it) {
-  return emojiNivel_(it.nivel) + " " + encabezado_(it) + " (" + it.fuente + "): " +
-    "\u00bfrecibi\u00f3 y socializ\u00f3 esta informaci\u00f3n en su servicio?";
-}
-
-function opcionesEncuesta_() {
-  return OPCIONES_ENCUESTA.map(function(o) { return { optionName: emoji_(o[0]) + " " + o[1] }; });
-}
-
-// Encuesta de una sola respuesta despues de la alerta. Va al mismo grupo (GA_CHAT_ID): en el plan
-// Developer de GREEN-API el limite es de chats distintos por mes, no de mensajes, asi que no abre chat nuevo.
-function enviarEncuesta_(it, enviarReal) {
-  if (!ENCUESTA_ACTIVA) return { ok: true, omitida: true };
-  var datos = { message: preguntaEncuesta_(it), options: opcionesEncuesta_(), multipleAnswers: false };
-  if (!enviarReal) {
-    Logger.log("[SIMULADO - encuesta no enviada]\n%s\n%s", datos.message,
-      datos.options.map(function(o) { return "  ( ) " + o.optionName; }).join("\n"));
-    return { ok: true, simulado: true };
-  }
-  var r = llamarGreenApi_("sendPoll", datos);
-  if (!r.ok) Logger.log("[%s] Encuesta no enviada (%s).", it.clave, r.error || "");
-  return r;
 }
 
 // Descarga el PDF de la alerta solo para extraer la foto del producto; no se analiza su texto.
