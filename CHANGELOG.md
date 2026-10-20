@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.9.2] - 2026-10-20
+
+### Corregido
+- Primera ejecución por disparador (2:21 p. m.): INVIMA publicó "SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO" con el enlace "Ver" roto (`ckfinder.html`, sin número). La clave de respaldo era la URL, igual para todas las alertas con ese enlace: una segunda se habría descartado como repetida. Ahora, si el enlace no es un PDF, la clave es `FUENTE:AS:T:<título normalizado>`; las ya guardadas con la clave anterior se reconocen por clave y título.
+
 ## [1.9.1] - 2026-10-20
 
 ### Cambiado

@@ -242,7 +242,25 @@ prueba("parsearListado_ sin items y clave de respaldo por URL", () => {
   const { g } = crearEntorno();
   assert.strictEqual(g.parsearListado_("<html>error</html>", "MED").length, 0);
   const sinNumero = g.parsearListado_(ENVOLTURA([filaMed("Alerta sanitaria sobre: X", "Comunicado.pdf")]), "MED");
-  assert.ok(sinNumero[0].clave.startsWith("MED:https://"));
+  assert.ok(sinNumero[0].clave.startsWith("MED:https://"), "PDF propio sin numero: clave por URL");
+});
+
+prueba("enlace roto a ckfinder.html (20/10/2026): clave por titulo, sin confundir alertas ni reprocesar la anterior", () => {
+  const roto = "https://app.invima.gov.co/alertas/sites/all/modules/ckeditor/ckfinder/ckfinder.html";
+  const fila = (titulo) => filaMed(titulo, "X.pdf").replace(/href="[^"]+"/, 'href="' + roto + '"');
+  const { g, hojas, estado } = entornoListo();
+  const items = g.parsearListado_(ENVOLTURA([fila("Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO"),
+    fila("Alerta Sanitaria sobre : CREMA X")]), "MED");
+  assert.strictEqual(items[0].clave, "MED:AS:T:ALERTA SANITARIA SOBRE SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO");
+  assert.notStrictEqual(items[0].clave, items[1].clave);
+  assert.strictEqual(items[0].claveAnterior, "MED:" + roto);
+  // Historico ya tiene la alerta con la clave anterior (version 2:21 p. m.): no se repite; la otra si es nueva.
+  hojas.Historico.getRange(2, 1, 1, 12).setValues([["MED:" + roto, "MED", "", "", "Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO", "Alerta sanitaria", "", roto, "", "BAJA", "", "RESUMEN_SEMANAL"]]);
+  estado.html.MED = ENVOLTURA([fila("Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO"), fila("Alerta Sanitaria sobre : CREMA X")]);
+  estado.html.DM = ENVOLTURA([]);
+  const r = g.probarSinEnviar();
+  assert.strictEqual(r.nuevos.length, 1);
+  assert.strictEqual(r.nuevos[0].titulo, "Alerta Sanitaria sobre : CREMA X");
 });
 
 prueba("inicializarHoja crea pestanas y es idempotente", () => {
