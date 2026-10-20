@@ -12,7 +12,8 @@ var USER_AGENT = "HDV-ESE-ServicioFarmaceutico-AlertasINVIMA/0.1 (Apps Script; V
 // Fuentes por defecto. En operacion normal se leeran de la pestana Config_Fuentes.
 var FUENTES_DEFECTO = [
   { fuente: "MED", url: "https://app.invima.gov.co/alertas/medicamentos-productos-biologicos" },
-  { fuente: "DM", url: "https://app.invima.gov.co/alertas/dispositivos-medicos-otras-tecnologias" }
+  // Verificado en probarAcceso() 2026-10-20: la ruta "dispositivos-medicos-otras-tecnologias" da 404.
+  { fuente: "DM", url: "https://app.invima.gov.co/alertas/dispositivos-medicos-invima" }
 ];
 
 // Pagina indice, usada solo en la prueba de acceso para descubrir la ruta real de DM.
@@ -48,6 +49,30 @@ function probarAcceso() {
       registrarEnlacesAlertas_(html);
     } catch (err) {
       Logger.log("[%s] %s -> EXCEPCION: %s", obj.fuente, obj.url, err);
+    }
+  });
+}
+
+// Registra el HTML que rodea los dos primeros enlaces PDF de cada fuente,
+// para conocer el marcado real de cada item (titulo, tipo, fecha, "Ver").
+// Solo lectura: no envia mensajes ni escribe en la hoja.
+function volcarMuestraHtml() {
+  FUENTES_DEFECTO.forEach(function(f, i) {
+    if (i > 0) Utilities.sleep(1500);
+    var resp = UrlFetchApp.fetch(f.url + "?page=0", {
+      muteHttpExceptions: true,
+      headers: { "User-Agent": USER_AGENT }
+    });
+    var html = resp.getContentText("UTF-8");
+    Logger.log("[%s] HTTP=%s", f.fuente, resp.getResponseCode());
+    var re = new RegExp(REGEX_PDF_ALERTA.source, "gi");
+    var m, n = 0, desde = 0;
+    while ((m = re.exec(html)) !== null && n < 2) {
+      var ini = Math.max(desde, m.index - 2500);
+      var fin = Math.min(html.length, m.index + 400);
+      Logger.log("[%s] MUESTRA %s:\n%s", f.fuente, n + 1, html.substring(ini, fin).replace(/\s+/g, " "));
+      desde = fin;
+      n++;
     }
   });
 }
