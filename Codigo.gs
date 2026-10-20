@@ -754,7 +754,8 @@ function opcionesEncuesta_() {
   return OPCIONES_ENCUESTA.map(function(o) { return { optionName: emoji_(o[0]) + " " + o[1] }; });
 }
 
-// Encuesta de una sola respuesta despues de la alerta. Cuenta como un mensaje mas en la cuota.
+// Encuesta de una sola respuesta despues de la alerta. Va al mismo grupo (GA_CHAT_ID): en el plan
+// Developer de GREEN-API el limite es de chats distintos por mes, no de mensajes, asi que no abre chat nuevo.
 function enviarEncuesta_(it, enviarReal) {
   if (!ENCUESTA_ACTIVA) return { ok: true, omitida: true };
   var datos = { message: preguntaEncuesta_(it), options: opcionesEncuesta_(), multipleAnswers: false };
