@@ -1,0 +1,9 @@
+{
+  "name": "alertas-whatsapp-sanitarias-invima",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot de alertas sanitarias INVIMA para el HDV E.S.E. (Google Apps Script). Pruebas locales sin credenciales.",
+  "scripts": {
+    "test": "node test/dry-run.js"
+  }
+}
