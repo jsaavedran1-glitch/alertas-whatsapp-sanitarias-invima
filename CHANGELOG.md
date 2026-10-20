@@ -5,7 +5,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 ## [1.9.0] - 2026-10-20
 
 ### Cambiado
-- La encuesta de socialización se reemplaza por una línea en cada alerta: "✅ Confirme que recibió y socializó esta información en su servicio reaccionando con ✅ a este mensaje." Una encuesta de WhatsApp exige al menos 2 opciones y el referente pidió solo "Recibida y socializada en mi servicio". Cada alerta vuelve a ser un solo mensaje; se retiran `sendPoll` y `test/encuesta.js`.
+- Se probó reemplazar la encuesta por una reacción ✅ y el referente prefirió la encuesta después del mensaje. Segunda opción (WhatsApp exige al menos 2): "❓ Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408" en lugar de "⏳ Recibida, pendiente por socializar".
 
 ## [1.8.0] - 2026-10-20
 
