@@ -600,8 +600,8 @@ prueba("encuesta de socializacion despues de cada alerta individual (foto o text
   const poll = e.enviados[1].cuerpo;
   assert.strictEqual(poll.chatId, "120363412506101174@g.us");
   assert.strictEqual(poll.message, "\u{1F534} Alerta sanitaria No. 331-2026 (MED): ¿recibió y socializó esta información en su servicio?");
-  assert.strictEqual(poll.options[0].optionName, "\u2705 Recibida y socializada en mi servicio");
-  assert.strictEqual(poll.options[1].optionName, "\u2753 Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408");
+  assert.strictEqual(poll.options[0].optionName, "\u2705 Sí");
+  assert.strictEqual(poll.options[1].optionName, "\u274C No");
   assert.strictEqual(poll.options.length, 2);
   assert.strictEqual(poll.multipleAnswers, false);
   const alta = (n) => filaMed("Alerta sanitaria sobre: OZEMPIC lote " + n, "Alerta%20No_" + n + "-2026.pdf");

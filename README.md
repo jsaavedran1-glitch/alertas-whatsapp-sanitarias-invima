@@ -12,8 +12,8 @@ Después de cada alerta enviada de forma individual, el bot envía al mismo grup
 
 ```
 🔴 Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?
-( ) ✅ Recibida y socializada en mi servicio
-( ) ❓ Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408
+( ) ✅ Sí
+( ) ❌ No
 ```
 
 - El círculo de color es el nivel de la alerta (🔴 ALTA, 🟠 MEDIA); los informes de seguridad dicen "Informe de seguridad No. …".

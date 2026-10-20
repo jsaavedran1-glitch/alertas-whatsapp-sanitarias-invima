@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.9.1] - 2026-10-20
+
+### Cambiado
+- Opciones de la encuesta de socialización: ✅ Sí / ❌ No (a pedido del referente). La pregunta no cambia.
+
 ## [1.9.0] - 2026-10-20
 
 ### Cambiado

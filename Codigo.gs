@@ -23,8 +23,8 @@ var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje a
 // WhatsApp exige al menos 2 opciones. No se envia con el mensaje agrupado (> MAX_MENSAJES).
 var ENCUESTA_ACTIVA = true;
 var OPCIONES_ENCUESTA = [
-  [0x2705, "Recibida y socializada en mi servicio"],
-  [0x2753, "Requiero m\u00e1s informaci\u00f3n: QF Juan Pablo Saavedra HDV \u00b7 3245844408"]
+  [0x2705, "S\u00ed"],
+  [0x274C, "No"]
 ];
 
 // Foto del producto (extraida del PDF) con el texto de la alerta al pie. Solo MED: en el
