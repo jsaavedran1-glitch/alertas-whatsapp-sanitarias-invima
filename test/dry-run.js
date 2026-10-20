@@ -487,6 +487,8 @@ prueba("extraerJpegsPdf_ encuentra los JPEG incrustados y elige la foto mas gran
   assert.strictEqual(foto.bytes[0] & 255, 0xFF);
   assert.strictEqual(foto.bytes[foto.bytes.length - 1] & 255, 0xD9);
   assert.strictEqual(g.elegirFoto_([r.jpegs[0]]), null, "el logo de 3 KB no se elige");
+  assert.strictEqual(r.otras.length, 1);
+  assert.ok(r.otras[0].startsWith("50x50 FlateDecode"), r.otras[0]);
 });
 
 prueba("fotosCandidatas_ descarta la franja de encabezado aunque sea grande (caso BUSCAPINA 329-2026)", () => {

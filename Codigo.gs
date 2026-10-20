@@ -930,13 +930,18 @@ function diagnosticarImagenesPdf() {
     var fotos = fotosCandidatas_(resultado.jpegs).slice(0, 2);
     var elegida = fotos[0] || null;
     var descripcion = resultado.jpegs.map(function(j) { return j.kb + " KB " + j.ancho + "x" + j.alto; }).join("; ");
+    if (resultado.otras && resultado.otras.length > 0) {
+      descripcion = (descripcion || "ninguno") + " | otras: " + resultado.otras.join("; ");
+    }
     hoja.getRange(fila, 1, 1, 7).setValues([[it.clave, tituloCorto_(it.titulo), resultado.kbPdf, resultado.totalImagenes,
       descripcion || (error || "ninguno"), elegida ? elegida.kb + " KB " + elegida.ancho + "x" + elegida.alto : "—",
       it.nivel]]);
     if (elegida) hoja.setRowHeight(fila, 220);
     fotos.forEach(function(foto, n) {
       try {
-        hoja.insertImage(Utilities.newBlob(foto.bytes, "image/jpeg", it.clave + "-" + (n + 1) + ".jpg"), 8 + n, fila);
+        var img = hoja.insertImage(Utilities.newBlob(foto.bytes, "image/jpeg", it.clave + "-" + (n + 1) + ".jpg"), 8 + n, fila);
+        var escala = Math.min(310 / (foto.ancho || 310), 210 / (foto.alto || 210), 1);
+        img.setWidth(Math.round((foto.ancho || 310) * escala)).setHeight(Math.round((foto.alto || 210) * escala));
       } catch (e2) {
         hoja.getRange(fila, 8 + n).setValue("No se pudo insertar: " + e2);
       }
@@ -975,7 +980,31 @@ function extraerJpegsPdf_(bytes) {
     });
     pos = fin;
   }
-  return { totalImagenes: total, jpegs: jpegs };
+  return { totalImagenes: total, jpegs: jpegs, otras: describirOtrasImagenesPdf_(s) };
+}
+
+// Describe las imagenes que no son JPEG (p. ej. /FlateDecode) para decidir si vale la pena extraerlas:
+// "1200x800 FlateDecode DeviceRGB pred15 450 KB". Solo lee el diccionario y el tamano del stream.
+function describirOtrasImagenesPdf_(s) {
+  var otras = [];
+  var re = /\/Subtype\s*\/Image/g;
+  var m;
+  while ((m = re.exec(s)) !== null) {
+    var inicioDic = s.lastIndexOf("<<", m.index);
+    var st = s.indexOf("stream", m.index);
+    if (inicioDic < 0 || st < 0) continue;
+    var dic = s.substring(inicioDic, st);
+    if (dic.indexOf("/DCTDecode") >= 0) continue;
+    var fin = s.indexOf("endstream", st);
+    var filtro = (dic.match(/\/Filter\s*\[?\s*\/(\w+)/) || [0, "sin filtro"])[1];
+    var color = (dic.match(/\/ColorSpace\s*\/(\w+)/) || [0, "otro"])[1];
+    var pred = (dic.match(/\/Predictor\s+(\d+)/) || [0, ""])[1];
+    otras.push(Number((dic.match(/\/Width\s+(\d+)/) || [0, 0])[1]) + "x" +
+      Number((dic.match(/\/Height\s+(\d+)/) || [0, 0])[1]) + " " + filtro + " " + color +
+      (pred ? " pred" + pred : "") + (dic.indexOf("/SMask") >= 0 ? " alfa" : "") + " " +
+      Math.round(Math.max(0, fin - st) / 1024) + " KB");
+  }
+  return otras;
 }
 
 // Fotos candidatas, de mayor a menor: se descartan logos y sellos (< 15 KB) y franjas de

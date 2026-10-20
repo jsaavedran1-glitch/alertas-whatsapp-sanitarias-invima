@@ -8,6 +8,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - Primera corrida: en la alerta MED 329-2026 (BUSCAPINA falsificada) la imagen elegida fue la foto del producto falsificado; los informes de seguridad de DM solo traen los logos de la plantilla (sin JPEG).
 - `diagnosticarImagenesPdf()` toma solo alertas sanitarias (hasta 3 por fuente, cualquier nivel) y muestra las dos fotos candidatas más grandes (columnas H e I).
 - Se descartan las franjas de encabezado o pie de página (un lado más de 3 veces el otro).
+- Segunda corrida: MED 330, 329 y 322 con foto del producto (3 de 3). DM 355, 353 y 352 sin JPEG: el diagnóstico describe ahora las imágenes no JPEG (tamaño, filtro, color) para decidir si se extraen. Fotos escaladas a la celda.
 
 ## [1.4.0] - 2026-10-20
 
