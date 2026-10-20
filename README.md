@@ -155,6 +155,7 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
 | `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |
+| `buscarIdGrupo()` | Muestra el `GA_CHAT_ID` del grupo donde alguien escribió `ID BOT` en las últimas 24 h (GREEN-API `lastIncomingMessages`, solo lectura; no usa `getContacts` ni `getChats` y no registra otros mensajes). El número del bot debe ser miembro del grupo | No |
 | `reiniciarDiagnosticoImagenes()` | Vacía `Diag_Imagenes` para repetir el diagnóstico desde cero | No |
 | `probarAcceso()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA | No |
 

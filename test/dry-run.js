@@ -163,6 +163,10 @@ function crearEntorno(opciones = {}) {
     UrlFetchApp: {
       fetch: (url, opts) => {
         if (/green-?api/.test(url)) {
+          if (url.indexOf("/lastIncomingMessages/") >= 0) {
+            enviados.push({ url, lectura: true });
+            return { getResponseCode: () => 200, getContentText: () => JSON.stringify(estado.entrantes || []) };
+          }
           if ((estado.hostsCaidos || []).some((h) => url.indexOf(h) >= 0)) throw new Error("Exception: Error de DNS: " + url);
           enviados.push({ url, cuerpo: typeof opts.payload === "string" ? JSON.parse(opts.payload) : opts.payload, contentType: opts.contentType });
           if (estado.falloFoto && url.indexOf("sendFileByUpload") >= 0) {
@@ -532,6 +536,22 @@ prueba("servidor de medios inexistente (DNS): reintenta la foto en el servidor d
   assert.strictEqual(e.enviados.length, 0);
   const porClave = Object.fromEntries(e.hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "ERROR");
+});
+
+prueba("buscarIdGrupo encuentra el chatId del grupo donde escribieron ID BOT, solo lectura", () => {
+  const { g, enviados, registro, estado } = crearEntorno();
+  estado.entrantes = [
+    { chatId: "120363000000000001@g.us", senderName: "Juan", textMessage: "id bot" },
+    { chatId: "120363000000000002@g.us", senderName: "Ana", textMessage: "Buenos días, paciente cama 4" },
+    { chatId: "573000000000@c.us", senderName: "Pedro", textMessage: "ID BOT" },
+    { chatId: "120363000000000003@g.us", senderName: "Luis", extendedTextMessage: { text: "ID BOT" } }
+  ];
+  const grupos = g.buscarIdGrupo();
+  assert.strictEqual(JSON.stringify(grupos), JSON.stringify(["120363000000000001@g.us", "120363000000000003@g.us"]));
+  assert.ok(enviados.every((e) => e.lectura), "no envia nada");
+  assert.ok(enviados[0].url.includes("/lastIncomingMessages/") && enviados[0].url.includes("minutes=1440"));
+  assert.ok(!registro.some((l) => l.includes("cama 4")), "no registra otros mensajes");
+  assert.ok(!registro.some((l) => l.includes(TOKEN)));
 });
 
 prueba("si la foto falla se envia como texto; sin PDF tambien; 466 en la foto no reintenta", () => {

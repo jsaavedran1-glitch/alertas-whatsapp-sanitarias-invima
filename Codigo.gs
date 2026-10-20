@@ -795,6 +795,51 @@ function llamarGreenApi_(metodo, datos) {
   return { ok: false, error: ultimoError };
 }
 
+// Muestra el chatId de un grupo de WhatsApp sin usar getContacts ni getChats: alguien escribe
+// MARCA_ID_GRUPO (p. ej. "ID BOT") en el grupo y esta funcion lo busca en los mensajes entrantes de
+// las ultimas 24 h (lastIncomingMessages, solo lectura). No envia nada ni registra otros mensajes.
+var MARCA_ID_GRUPO = "ID BOT";
+
+function buscarIdGrupo() {
+  var props = PropertiesService.getScriptProperties();
+  var apiUrl = props.getProperty("GA_API_URL");
+  var id = props.getProperty("GA_ID");
+  var token = props.getProperty("GA_TOKEN");
+  if (!apiUrl || !id || !token) {
+    Logger.log("Faltan propiedades GA_API_URL / GA_ID / GA_TOKEN.");
+    return [];
+  }
+  var resp;
+  try {
+    resp = UrlFetchApp.fetch(apiUrl.replace(/\/+$/, "") + "/waInstance" + id + "/lastIncomingMessages/" + token +
+      "?minutes=1440", { method: "get", muteHttpExceptions: true });
+  } catch (err) {
+    Logger.log("GREEN-API lastIncomingMessages excepcion: %s", ocultar_(String(err), token));
+    return [];
+  }
+  if (resp.getResponseCode() !== 200) {
+    Logger.log("GREEN-API lastIncomingMessages HTTP %s: %s", resp.getResponseCode(),
+      ocultar_(resp.getContentText().substring(0, 300), token));
+    return [];
+  }
+  var marca = normalizar_(MARCA_ID_GRUPO);
+  var vistos = {};
+  JSON.parse(resp.getContentText()).forEach(function(m) {
+    var texto = m.textMessage || (m.extendedTextMessage && m.extendedTextMessage.text) || "";
+    if (!/@g\.us$/.test(String(m.chatId)) || normalizar_(texto).indexOf(marca) < 0) return;
+    vistos[m.chatId] = m.senderName || m.senderId || "";
+  });
+  var grupos = Object.keys(vistos);
+  if (grupos.length === 0) {
+    Logger.log("No hay mensajes con \"%s\" en grupos en las ultimas 24 h. Escriba %s en el grupo (el numero del bot debe ser miembro) y vuelva a ejecutar.",
+      MARCA_ID_GRUPO, MARCA_ID_GRUPO);
+  }
+  grupos.forEach(function(chatId) {
+    Logger.log("Grupo con \"%s\" (escrito por %s): GA_CHAT_ID = %s", MARCA_ID_GRUPO, vistos[chatId], chatId);
+  });
+  return grupos;
+}
+
 // Evita que el token aparezca en registros o en la hoja.
 function ocultar_(texto, token) {
   return token ? String(texto).split(token).join("***") : String(texto);

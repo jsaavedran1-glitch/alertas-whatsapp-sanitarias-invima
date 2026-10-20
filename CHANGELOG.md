@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.7.0] - 2026-10-20
+
+### Agregado
+- `buscarIdGrupo()`: obtiene el chatId de un grupo a partir de un mensaje `ID BOT` escrito en él (solo lectura, sin `getContacts`), para cambiar `GA_CHAT_ID` al grupo de producción.
+
 ## [1.6.1] - 2026-10-20
 
 ### Corregido
