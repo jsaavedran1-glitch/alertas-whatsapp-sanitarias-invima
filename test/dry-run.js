@@ -251,6 +251,42 @@ prueba("clasificacion ALTA / MEDIA / BAJA", () => {
   assert.strictEqual(medGenta.nivel, "BAJA");
 });
 
+prueba("combinaciones y plurales en catalogo/Vigilancia", () => {
+  const { g, hojas } = entornoListo();
+  hojas.Catalogo_HDV.getRange(3, 1, 2, 5).setValues([
+    ["MED-0101", "PIPERACILINA/TAZOBACTAM 4.5G AMP", "PIPERACILINA/TAZOBACTAM", "", "MED"],
+    ["DM-0200", "CATETER VENOSO CENTRAL 7FR", "CATETER", "", "DM"]
+  ]);
+  hojas.Vigilancia.getRange(3, 1, 1, 1).setValues([["TRIMETOPRIMA+SULFAMETOXAZOL"]]);
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const med = (titulo) => g.clasificar_(g.parsearListado_(ENVOLTURA([filaMed(titulo, "Alerta%20No_1-2026.pdf")]), "MED")[0], reglas);
+  const dm = (titulo) => g.clasificar_(g.parsearListado_(ENVOLTURA([filaDm(titulo, "X", "Alerta sanitaria",
+    "ALERTAS%20SANITARIAS/Dispositivos_Medicos/2026/Octubre", "Alerta%20No_%20%2399-2026.pdf")]), "DM")[0], reglas);
+  assert.strictEqual(med("Alerta sanitaria sobre: TAZOBACTAM genérico").coincidencia, "PIPERACILINA/TAZOBACTAM 4.5G AMP (MED-0101)");
+  assert.strictEqual(med("Alerta sanitaria sobre: SULFAMETOXAZOL suspensión").coincidencia, "Vigilancia: TRIMETOPRIMA+SULFAMETOXAZOL");
+  assert.strictEqual(dm("Alerta sanitaria sobre: Catéteres venosos centrales").nivel, "ALTA");
+  assert.strictEqual(med("Alerta sanitaria sobre: LOTES FALSIFICADOS").nivel, "MEDIA");
+  assert.strictEqual(med("Alerta sanitaria sobre: SUPLEMENTOS DIETARIOS").nivel, "BAJA");
+});
+
+prueba("lote dispensado -> ALTA; laboratorio proveedor -> MEDIA", () => {
+  const { g, hojas } = entornoListo();
+  hojas.Catalogo_HDV.getRange(3, 1, 2, 8).setValues([
+    ["UT213718-2", "HIOSCINA N-B.BROMURO 10MG TAB", "HIOSCINA", "", "MED", "ANTIESPASMODICO", "F0537A; G00319A", "BOEHRINGER"],
+    ["UT19959771-5", "ACETAMINOFEN TAB 500MG", "ACETAMINOFEN", "", "MED", "ANALGESICOS", "1234", "GENFAR; GLOBAL"]
+  ]);
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const med = (titulo) => g.clasificar_(g.parsearListado_(ENVOLTURA([filaMed(titulo, "Alerta%20No_1-2026.pdf")]), "MED")[0], reglas);
+  const porLote = med("Alerta sanitaria sobre: FALSIFICACIÓN DEL PRODUCTO BUSCAPINA® COMPOSITUM LOTE F0537A");
+  assert.strictEqual(porLote.nivel, "ALTA");
+  assert.ok(porLote.coincidencia.startsWith("Lote F0537A dispensado en HDV: HIOSCINA N-B.BROMURO 10MG TAB (UT213718-2)"));
+  const porLab = med("Alerta sanitaria sobre: producto fraudulento con etiqueta Genfar");
+  assert.strictEqual(porLab.nivel, "MEDIA");
+  assert.strictEqual(porLab.coincidencia, "Laboratorio proveedor HDV: GENFAR");
+  assert.strictEqual(med("Alerta sanitaria sobre: GLOBAL NUTRITION capsulas").nivel, "BAJA", "laboratorio generico ignorado");
+  assert.strictEqual(med("Alerta sanitaria sobre: producto 1234").nivel, "BAJA", "lote corto ignorado");
+});
+
 prueba("formato del mensaje inmediato", () => {
   const { g } = entornoListo();
   const reglas = g.cargarReglas_(g.abrirHoja_());

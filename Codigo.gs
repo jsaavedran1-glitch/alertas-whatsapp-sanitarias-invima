@@ -19,6 +19,10 @@ var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
 var LONGITUD_MIN_TERMINO = 4;    // catalogo y Vigilancia: evita coincidencias espurias con nombres cortos
+var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
+
+// Prefijos de LoteSerial que no identifican a un laboratorio o fabricante concreto.
+var LABORATORIOS_GENERICOS = ["GLOBAL", "LIFE", "AMERICAN", "GOLDEN", "MEDICAL", "PHARMA", "FARMA", "PLUS"];
 var HORAS_REVISION = [6, 10, 14, 18];
 
 var COL_ENVIADO = 12; // columna "enviado" en Historico
@@ -43,9 +47,9 @@ var ENCABEZADOS = {
   Config_Fuentes: ["fuente", "url", "activa"],
   Historico: ["clave", "fuente", "numero", "anio", "titulo", "tipo", "fecha_publicada", "url_pdf",
     "fecha_deteccion", "nivel", "coincidencia", "enviado"],
-  Catalogo_HDV: ["codigo", "descripcion", "principio_activo", "marca", "tipo"],
+  Catalogo_HDV: ["codigo", "descripcion", "principio_activo", "marca", "tipo", "subgrupo", "lote", "laboratorio"],
   Reglas: ["termino", "nivel"],
-  Vigilancia: ["principio_activo"],
+  Vigilancia: ["principio_activo", "motivo"],
   Log: ["fecha", "fuente", "leidos", "nuevos", "enviados", "estado", "error"]
 };
 
@@ -387,6 +391,28 @@ function normalizar_(s) {
     .toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 }
 
+// Forma singular de cada palabra (CATETERES -> CATETER, JERINGAS -> JERINGA). Se aplica
+// por igual al titulo y a los terminos, para que los plurales no impidan la coincidencia.
+function singularizar_(textoNorm) {
+  return textoNorm.split(" ").map(function(p) {
+    if (p.length <= 4) return p;
+    if (/[RLNDZJ]ES$/.test(p)) return p.slice(0, -2);
+    if (/S$/.test(p)) return p.slice(0, -1);
+    return p;
+  }).join(" ");
+}
+
+function normTermino_(s) {
+  return singularizar_(normalizar_(s));
+}
+
+// Separa combinaciones ("PIPERACILINA/TAZOBACTAM", "TRIMETOPRIMA+SULFAMETOXAZOL") en terminos.
+function terminosDe_(texto) {
+  return String(texto || "").split(/[+\/;]/).map(normTermino_).filter(function(t) {
+    return t.length >= LONGITUD_MIN_TERMINO;
+  });
+}
+
 // Coincidencia por tokens completos (admite terminos de varias palabras).
 function contieneTermino_(textoNorm, terminoNorm) {
   if (!terminoNorm) return false;
@@ -397,35 +423,60 @@ function cargarReglas_(ss) {
   var reglas = { ALTA: [], MEDIA: [], BAJA: [], catalogo: [], vigilancia: [] };
   leerFilas_(ss.getSheetByName("Reglas")).forEach(function(r) {
     var nivel = normalizar_(r.nivel);
-    var t = normalizar_(r.termino);
+    var t = normTermino_(r.termino);
     if (t && reglas[nivel]) reglas[nivel].push({ norm: t, texto: String(r.termino).trim() });
   });
   leerFilas_(ss.getSheetByName("Catalogo_HDV")).forEach(function(c) {
-    var terminos = [normalizar_(c.principio_activo), normalizar_(c.marca)].filter(function(t) {
-      return t.length >= LONGITUD_MIN_TERMINO;
-    });
-    if (terminos.length === 0) return;
-    reglas.catalogo.push({
-      terminos: terminos,
+    var item = {
+      terminos: terminosDe_(c.principio_activo).concat(terminosDe_(c.marca)),
+      lotes: lotesDe_(c.lote),
+      laboratorios: laboratoriosDe_(c.laboratorio),
       tipo: normalizar_(c.tipo),
       etiqueta: String(c.descripcion || c.principio_activo).trim() + (c.codigo ? " (" + c.codigo + ")" : "")
-    });
+    };
+    if (item.terminos.length + item.lotes.length + item.laboratorios.length > 0) reglas.catalogo.push(item);
   });
   leerFilas_(ss.getSheetByName("Vigilancia")).forEach(function(v) {
-    var t = normalizar_(v.principio_activo);
-    if (t.length >= LONGITUD_MIN_TERMINO) reglas.vigilancia.push({ norm: t, texto: String(v.principio_activo).trim() });
+    terminosDe_(v.principio_activo).forEach(function(t) {
+      reglas.vigilancia.push({ norm: t, texto: String(v.principio_activo).trim() });
+    });
   });
   return reglas;
 }
 
-// ALTA: catalogo HDV, Vigilancia o regla ALTA. BAJA: termino BAJA sin coincidencia ALTA.
-// MEDIA: termino MEDIA o tipo "Informe de seguridad". BAJA: el resto.
+// Lotes de la columna "lote" (separados por ";"), sin tildes ni signos, con algun digito.
+function lotesDe_(texto) {
+  return String(texto || "").split(";").map(normalizar_).filter(function(l) {
+    return l.length >= LONGITUD_MIN_LOTE && /\d/.test(l);
+  });
+}
+
+// Laboratorios de la columna "laboratorio" (separados por ";"), sin prefijos genericos.
+function laboratoriosDe_(texto) {
+  return String(texto || "").split(";").map(normalizar_).filter(function(l) {
+    return l.length >= LONGITUD_MIN_TERMINO && LABORATORIOS_GENERICOS.indexOf(l) < 0;
+  });
+}
+
+// ALTA: catalogo HDV (principio activo, marca o lote dispensado), Vigilancia o regla ALTA.
+// BAJA: termino BAJA sin coincidencia ALTA.
+// MEDIA: termino MEDIA, tipo "Informe de seguridad" o laboratorio proveedor del HDV. BAJA: el resto.
 function clasificar_(it, reglas) {
-  var t = normalizar_(it.titulo);
+  var t = normTermino_(it.titulo);
+  var tLote = normalizar_(it.titulo); // los lotes se comparan sin singularizar
   var coincidencias = [];
+  var laboratorios = [];
   reglas.catalogo.forEach(function(c) {
     if (c.tipo && c.tipo !== it.fuente) return;
-    if (c.terminos.some(function(x) { return contieneTermino_(t, x); })) coincidencias.push(c.etiqueta);
+    var lote = c.lotes.filter(function(l) { return contieneTermino_(tLote, l); })[0];
+    if (lote) {
+      coincidencias.push("Lote " + lote + " dispensado en HDV: " + c.etiqueta);
+    } else if (c.terminos.some(function(x) { return contieneTermino_(t, x); })) {
+      coincidencias.push(c.etiqueta);
+    }
+    c.laboratorios.forEach(function(l) {
+      if (contieneTermino_(tLote, l) && laboratorios.indexOf(l) < 0) laboratorios.push(l);
+    });
   });
   reglas.vigilancia.forEach(function(v) {
     if (contieneTermino_(t, v.norm)) coincidencias.push("Vigilancia: " + v.texto);
@@ -434,16 +485,19 @@ function clasificar_(it, reglas) {
     if (contieneTermino_(t, r.norm)) coincidencias.push("Regla: " + r.texto);
   });
   var hay = function(lista) { return lista.some(function(r) { return contieneTermino_(t, r.norm); }); };
+  // Las coincidencias por lote van primero: son las mas especificas.
+  coincidencias.sort(function(a, b) { return (b.indexOf("Lote ") === 0) - (a.indexOf("Lote ") === 0); });
 
   if (coincidencias.length > 0) {
     it.nivel = "ALTA";
   } else if (hay(reglas.BAJA)) {
     it.nivel = "BAJA";
-  } else if (hay(reglas.MEDIA) || it.tipoCodigo === "IS") {
+  } else if (hay(reglas.MEDIA) || it.tipoCodigo === "IS" || laboratorios.length > 0) {
     it.nivel = "MEDIA";
   } else {
     it.nivel = "BAJA";
   }
+  if (laboratorios.length > 0) coincidencias.push("Laboratorio proveedor HDV: " + laboratorios.join(", "));
   it.coincidencia = coincidencias.filter(function(c, i) { return coincidencias.indexOf(c) === i; })
     .slice(0, 3).join("; ");
   return it;

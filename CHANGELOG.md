@@ -2,6 +2,14 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.1.0] - 2026-10-20
+
+### Agregado
+- `Catalogo_HDV` con columnas `subgrupo`, `lote` y `laboratorio`; cargado con 1.212 productos de `DTSUMINISTRO` (lote y laboratorio por fórmula desde `Aux_Productos`).
+- Lote dispensado en el título de la alerta -> ALTA; laboratorio proveedor -> al menos MEDIA.
+- `Vigilancia` precargada (antimicrobianos PROA y control especial presentes en el catálogo), con columna `motivo`.
+- Combinaciones (`+`, `/`, `;`) separadas en términos y tolerancia a plurales en la coincidencia.
+
 ## [1.0.0] - 2026-10-20
 
 ### Agregado
