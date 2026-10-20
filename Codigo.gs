@@ -19,6 +19,11 @@ var MAX_MENSAJES = 10;           // por ejecucion, contando encuestas; si hay ma
 
 // Encuesta de WhatsApp que se envia despues de cada alerta ALTA (solo en envio individual).
 var ENCUESTA_ALTA = true;
+// Foto del producto (extraida del PDF) con el texto de la alerta al pie. Solo MED: en el
+// diagnostico de 80 alertas, 39 de 40 de medicamentos traen foto; las de DM solo la plantilla.
+var FOTO_EN_ALERTAS = true;
+var FUENTES_CON_FOTO = ["MED"];
+var MAX_CARACTERES_PIE = 1024;    // si el texto es mas largo, la alerta sale solo como texto
 var OPCIONES_ENCUESTA = [
   String.fromCodePoint(0x2705) + " Sí aplica: el HDV tiene el producto o el lote",
   String.fromCodePoint(0x274C) + " No aplica al HDV",
@@ -160,8 +165,9 @@ function vistaPrevia() {
   });
 }
 
-// ENVIA DE VERDAD a GA_CHAT_ID un mensaje de prueba y su encuesta, con la primera alerta ALTA de la
-// pagina 0 (o la primera alerta si no hay ALTA). No escribe en el Historico. Usar solo con PRUEBA BOT.
+// ENVIA DE VERDAD a GA_CHAT_ID un mensaje de prueba (con la foto del producto si es MED) y su
+// encuesta, con la primera alerta ALTA de la pagina 0 (o la primera alerta si no hay ALTA).
+// No escribe en el Historico. Usar solo con PRUEBA BOT.
 function enviarPruebaEncuesta() {
   var ss = abrirHoja_();
   var reglas = cargarReglas_(ss);
@@ -182,8 +188,8 @@ function enviarPruebaEncuesta() {
   candidata.nivel = "ALTA";
   Logger.log("Enviando prueba a GA_CHAT_ID = %s con la alerta %s", PropertiesService.getScriptProperties().getProperty("GA_CHAT_ID"), candidata.clave);
   var mensaje = emoji_(0x1F9EA) + " *MENSAJE DE PRUEBA* (no es una alerta nueva)\n\n" + formatearMensaje_(candidata);
-  var r = enviarWhatsApp_(mensaje, true);
-  Logger.log("Mensaje: %s", r.ok ? "enviado" : "NO enviado (" + (r.error || "") + ")");
+  var r = enviarAlerta_(mensaje, candidata, true);
+  Logger.log("Mensaje: %s", r.ok ? "enviado" + (r.foto ? " con foto" : " como texto") : "NO enviado (" + (r.error || "") + ")");
   if (!r.ok) return;
   Utilities.sleep(ESPERA_MENSAJES_MS);
   var re = enviarEncuesta_(preguntaEncuesta_(candidata), OPCIONES_ENCUESTA, true);
@@ -291,7 +297,8 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
   var encuestas = ENCUESTA_ALTA ? inmediatos.filter(function(it) { return it.nivel === "ALTA"; }).length : 0;
   var lotes = (inmediatos.length + encuestas <= MAX_MENSAJES)
     ? inmediatos.map(function(it) {
-        return { mensaje: formatearMensaje_(it), items: [it], encuesta: (ENCUESTA_ALTA && it.nivel === "ALTA") ? preguntaEncuesta_(it) : null };
+        return { mensaje: formatearMensaje_(it), items: [it], foto: true,
+          encuesta: (ENCUESTA_ALTA && it.nivel === "ALTA") ? preguntaEncuesta_(it) : null };
       })
     : [{ mensaje: formatearAgrupado_(inmediatos), items: inmediatos, encuesta: null }];
 
@@ -302,7 +309,7 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
       estado = ENVIADO.CUOTA;
     } else {
       if (i > 0) Utilities.sleep(ESPERA_MENSAJES_MS);
-      var r = enviarWhatsApp_(lote.mensaje, modo.enviar);
+      var r = lote.foto ? enviarAlerta_(lote.mensaje, lote.items[0], modo.enviar) : enviarWhatsApp_(lote.mensaje, modo.enviar);
       if (r.cuota) cuotaAgotada = true;
       estado = r.ok ? ENVIADO.SI : (r.cuota ? ENVIADO.CUOTA : ENVIADO.ERROR);
       if (!r.ok) {
@@ -703,6 +710,51 @@ function enviarWhatsApp_(mensaje, enviarReal) {
   return llamarGreenApi_("sendMessage", { message: mensaje });
 }
 
+// Alerta individual: si es de una fuente con foto, envia la foto del producto (primer JPEG util del
+// PDF) con el texto al pie (sendFileByUpload). Si no hay foto, el texto es muy largo o el envio de la
+// foto falla por otra causa que no sea el 466, se envia como texto. Cuenta como un solo mensaje.
+function enviarAlerta_(mensaje, it, enviarReal) {
+  var foto = (mensaje.length <= MAX_CARACTERES_PIE) ? fotoProducto_(it) : null;
+  if (!foto) return enviarWhatsApp_(mensaje, enviarReal);
+  if (!enviarReal) {
+    Logger.log("[SIMULADO - foto %s KB %sx%s, texto al pie]\n%s", foto.kb, foto.ancho, foto.alto, mensaje);
+    return { ok: true, simulado: true, foto: true };
+  }
+  var r = llamarGreenApi_("sendFileByUpload", {
+    file: Utilities.newBlob(foto.bytes, "image/jpeg", nombreFoto_(it)),
+    fileName: nombreFoto_(it),
+    caption: mensaje
+  });
+  if (r.ok) {
+    r.foto = true;
+    return r;
+  }
+  if (r.cuota) return r;
+  Logger.log("[%s] Foto no enviada (%s); se envia como texto.", it.clave, r.error || "");
+  Utilities.sleep(ESPERA_MENSAJES_MS);
+  return enviarWhatsApp_(mensaje, enviarReal);
+}
+
+// Descarga el PDF de la alerta solo para extraer la foto del producto; no se analiza su texto.
+function fotoProducto_(it) {
+  if (!FOTO_EN_ALERTAS || FUENTES_CON_FOTO.indexOf(it.fuente) < 0 || !it.url || !/\.pdf$/i.test(it.url)) return null;
+  try {
+    var resp = UrlFetchApp.fetch(it.url, { muteHttpExceptions: true, headers: { "User-Agent": USER_AGENT } });
+    if (resp.getResponseCode() !== 200) {
+      Logger.log("[%s] PDF HTTP %s: se envia sin foto.", it.clave, resp.getResponseCode());
+      return null;
+    }
+    return elegirFoto_(extraerJpegsPdf_(resp.getBlob().getBytes()).jpegs);
+  } catch (e) {
+    Logger.log("[%s] No se pudo extraer la foto (%s): se envia sin foto.", it.clave, e);
+    return null;
+  }
+}
+
+function nombreFoto_(it) {
+  return String(it.clave).replace(/[^A-Za-z0-9-]+/g, "_") + ".jpg";
+}
+
 // Encuesta de WhatsApp (sendPoll) al mismo GA_CHAT_ID, con una sola respuesta por persona.
 function enviarEncuesta_(pregunta, opciones, enviarReal) {
   if (!enviarReal) {
@@ -737,13 +789,15 @@ function llamarGreenApi_(metodo, datos) {
   }
   var cuerpo = { chatId: chatId };
   Object.keys(datos).forEach(function(k) { cuerpo[k] = datos[k]; });
+  // Los archivos van al servidor de medios (GA_MEDIA_URL, o el de la API con "media" en vez de "api")
+  // como multipart/form-data; el resto, como JSON al servidor de la API.
+  var archivo = metodo === "sendFileByUpload";
+  var base = archivo ? (props.getProperty("GA_MEDIA_URL") || apiUrl.replace(".api.", ".media.")) : apiUrl;
+  var opciones = archivo
+    ? { method: "post", payload: cuerpo, muteHttpExceptions: true }
+    : { method: "post", contentType: "application/json", payload: JSON.stringify(cuerpo), muteHttpExceptions: true };
   try {
-    var resp = UrlFetchApp.fetch(apiUrl.replace(/\/+$/, "") + "/waInstance" + id + "/" + metodo + "/" + token, {
-      method: "post",
-      contentType: "application/json",
-      payload: JSON.stringify(cuerpo),
-      muteHttpExceptions: true
-    });
+    var resp = UrlFetchApp.fetch(base.replace(/\/+$/, "") + "/waInstance" + id + "/" + metodo + "/" + token, opciones);
     var codigo = resp.getResponseCode();
     if (codigo === 200) return { ok: true, codigo: codigo };
     if (codigo === 466) {

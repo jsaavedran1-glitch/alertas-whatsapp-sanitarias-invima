@@ -163,7 +163,10 @@ function crearEntorno(opciones = {}) {
     UrlFetchApp: {
       fetch: (url, opts) => {
         if (url.indexOf("greenapi") >= 0) {
-          enviados.push({ url, cuerpo: JSON.parse(opts.payload) });
+          enviados.push({ url, cuerpo: typeof opts.payload === "string" ? JSON.parse(opts.payload) : opts.payload, contentType: opts.contentType });
+          if (estado.falloFoto && url.indexOf("sendFileByUpload") >= 0) {
+            return { getResponseCode: () => estado.falloFoto, getContentText: () => "error" };
+          }
           return { getResponseCode: () => estado.codigoGreen, getContentText: () => '{"idMessage":"X"}' };
         }
         urlsInvima.push(url);
@@ -479,6 +482,84 @@ prueba("enviarPruebaEncuesta envia 1 mensaje marcado como prueba + 1 encuesta, s
   assert.ok(enviados[0].cuerpo.message.includes("*PRIORIDAD ALTA*"));
   assert.ok(enviados.every((e) => e.cuerpo.chatId === "120363412506101174@g.us"));
   assert.strictEqual(hojas.Historico.d.length, 1);
+});
+
+const URL_PDF_MED = (archivo) => "https://app.invima.gov.co/alertas/ckfinder/userfiles/files/ALERTAS%20SANITARIAS/medicamentos_pbiologicos/2026/OCTUBRE/" + archivo;
+
+function pdfConFoto() {
+  const ascii = (t) => Array.from(Buffer.from(t, "latin1"));
+  const jpeg = (n) => [0xFF, 0xD8].concat(Array(n).fill(0x41), [0xFF, 0xD9]);
+  return ascii("%PDF-1.4\n<< /Subtype /Image /Width 1649 /Height 195 /Filter /DCTDecode >>\nstream\n").concat(jpeg(37000),
+    ascii("\nendstream\n<< /Subtype /Image /Width 612 /Height 666 /Filter /DCTDecode >>\nstream\n"), jpeg(59000), ascii("\nendstream\n"));
+}
+
+function entornoConAlertaMed(opciones) {
+  const e = entornoListo(opciones);
+  e.g.cargaInicial();
+  e.estado.html.MED = ENVOLTURA(MED_FILAS.concat([
+    filaMed("Alerta sanitaria sobre: RETIRO DE LOTE BUTILBROMURO DE HIOSCINA", "Alerta%20No_331-2026.pdf")
+  ]));
+  e.estado.html.DM = ENVOLTURA(DM_FILAS.concat([
+    filaDm("Alerta sanitaria sobre: Cemento óseo PALACOS lote X", "DI2610-00002", "Alerta sanitaria",
+      "ALERTAS%20SANITARIAS/Dispositivos_Medicos/2026/Octubre", "Alerta%20No_%20%23356-2026.pdf")
+  ]));
+  e.estado.pdfs = { [URL_PDF_MED("Alerta%20No_331-2026.pdf")]: pdfConFoto() };
+  return e;
+}
+
+prueba("alerta MED con foto: sendFileByUpload al servidor de medios con el texto al pie; DM como texto", () => {
+  const { g, hojas, enviados, urlsInvima } = entornoConAlertaMed();
+  g.revisarAlertas();
+  const metodos = enviados.map((e) => e.url.split("/")[4]);
+  assert.strictEqual(JSON.stringify(metodos), JSON.stringify(["sendFileByUpload", "sendPoll", "sendMessage", "sendPoll"]));
+  const foto = enviados[0];
+  assert.ok(foto.url.startsWith("https://7107.media.greenapi.com/waInstance710722693364/sendFileByUpload/"));
+  assert.strictEqual(foto.contentType, undefined, "multipart, no JSON");
+  assert.strictEqual(foto.cuerpo.chatId, "120363412506101174@g.us");
+  assert.ok(foto.cuerpo.caption.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA*"));
+  assert.strictEqual(foto.cuerpo.fileName, "MED_AS_331-2026.jpg");
+  assert.strictEqual(foto.cuerpo.file.tipo, "image/jpeg");
+  assert.strictEqual(foto.cuerpo.file.bytes.length, 59004, "la foto, no el banner");
+  assert.ok(enviados[2].cuerpo.message.startsWith("[INVIMA-DM]"));
+  assert.ok(!urlsInvima.some((u) => u.includes("Dispositivos_Medicos") && u.endsWith(".pdf")), "no descarga PDF de DM");
+  const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
+  assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
+});
+
+prueba("si la foto falla se envia como texto; sin PDF tambien; 466 en la foto no reintenta", () => {
+  let e = entornoConAlertaMed();
+  e.estado.falloFoto = 500;
+  e.g.revisarAlertas();
+  assert.strictEqual(JSON.stringify(e.enviados.slice(0, 3).map((x) => x.url.split("/")[4])),
+    JSON.stringify(["sendFileByUpload", "sendMessage", "sendPoll"]));
+  assert.ok(e.enviados[1].cuerpo.message.startsWith("[INVIMA-MED]"));
+
+  e = entornoConAlertaMed();
+  e.estado.pdfs = {};                              // PDF no disponible (404)
+  e.g.revisarAlertas();
+  assert.strictEqual(e.enviados[0].url.split("/")[4], "sendMessage");
+
+  e = entornoConAlertaMed();
+  e.estado.falloFoto = 466;
+  e.g.revisarAlertas();
+  assert.strictEqual(e.enviados.length, 1, "tras el 466 no hay texto de respaldo ni mas envios");
+  const porClave = Object.fromEntries(e.hojas.Historico.filas().map((f) => [f.clave, f]));
+  assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "NO_ENVIADO_466");
+});
+
+prueba("probarSinEnviar muestra la foto simulada sin enviar", () => {
+  const { g, enviados, registro } = entornoConAlertaMed();
+  g.probarSinEnviar();
+  assert.strictEqual(enviados.length, 0);
+  assert.ok(registro.some((l) => l.startsWith("[SIMULADO - foto 58 KB 612x666, texto al pie]") && l.includes("331-2026")));
+});
+
+prueba("texto mas largo que el pie permitido -> solo texto, sin descargar el PDF", () => {
+  const { g, enviados, urlsInvima } = entornoConAlertaMed();
+  g.MAX_CARACTERES_PIE = 10;
+  g.revisarAlertas();
+  assert.strictEqual(enviados[0].url.split("/")[4], "sendMessage");
+  assert.ok(!urlsInvima.some((u) => u.endsWith("No_331-2026.pdf")));
 });
 
 prueba("extraerJpegsPdf_ encuentra los JPEG incrustados y elige la foto mas grande", () => {

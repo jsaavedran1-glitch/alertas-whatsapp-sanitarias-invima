@@ -2,6 +2,13 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.5.0] - 2026-10-20
+
+### Agregado
+- Alertas de medicamentos con la **foto del producto** extraída del PDF y el texto completo al pie (`sendFileByUpload`, multipart, al servidor de medios de GREEN-API). Respaldo en texto si no hay foto, el PDF no descarga, el texto supera 1.024 caracteres o la foto falla (salvo 466, que no reintenta). DM sigue como texto.
+- Propiedad opcional `GA_MEDIA_URL`; constantes `FOTO_EN_ALERTAS`, `FUENTES_CON_FOTO`, `MAX_CARACTERES_PIE`.
+- `enviarPruebaEncuesta()` envía la foto si la alerta es MED.
+
 ## [1.4.2] - 2026-10-20
 
 ### Cambiado (diagnóstico de fotos)

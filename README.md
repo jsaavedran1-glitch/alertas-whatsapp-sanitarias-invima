@@ -49,6 +49,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | `GA_ID` | ID de la instancia (`710722693364`). |
 | `GA_TOKEN` | Token de la instancia. **Secreto: no versionar, no compartir.** |
 | `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "HDV-Nuevo servicio". |
+| `GA_MEDIA_URL` | Opcional. Servidor de medios de GREEN-API para `sendFileByUpload` (p. ej. `https://7107.media.greenapi.com`). Si falta, se deriva de `GA_API_URL`. |
 | `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
 
 `ULTIMO_AVISO_TECNICO` la crea el bot (fecha del último aviso de listado ilegible).
@@ -105,7 +106,8 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 - **Envío:** ALTA y MEDIA de inmediato (ALTA primero), 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. BAJA solo en el resumen semanal.
 - **Encuesta en alertas 🔴 ALTA:** después de cada alerta ALTA se envía al mismo grupo una encuesta de WhatsApp (`sendPoll`, una respuesta por persona): "🔴 Alerta sanitaria No. 329-2026 (MED): ¿aplica al HDV?" con las opciones ✅ Sí aplica: el HDV tiene el producto o el lote / ❌ No aplica al HDV / 🔎 En revisión. Las encuestas cuentan dentro del máximo de 10 mensajes: si alertas + encuestas superan 10, se envía solo el mensaje agrupado, sin encuestas. Se desactiva con `ENCUESTA_ALTA = false` y las opciones se editan en `OPCIONES_ENCUESTA` (`Codigo.gs`). Las respuestas quedan en el grupo; el bot no las lee.
 - **Listado ilegible** (HTTP ≠ 200 o 0 ítems en `page=0`): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
-- **GREEN-API:** solo `sendMessage` a `GA_CHAT_ID`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
+- **Foto del producto (solo MED):** cada alerta individual de medicamentos se envía como la foto del producto extraída del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si el PDF no descarga, no trae foto, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. DM siempre como texto: sus PDF solo traen las imágenes de la plantilla (diagnóstico del 20/10/2026: MED 39 de 40 con foto, DM 0 de 26). Se desactiva con `FOTO_EN_ALERTAS = false`.
+- **GREEN-API:** solo `sendMessage`, `sendFileByUpload` y `sendPoll` a `GA_CHAT_ID`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
 
 ## Formato del mensaje
 
@@ -148,7 +150,7 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `probarSinEnviar()` | Flujo completo simulado | No |
 | `instalarDisparadores()` | Recrea los disparadores | No |
 | `revisarAlertas()` | Función principal | **Sí** |
-| `enviarPruebaEncuesta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba y su encuesta, con una alerta ALTA real; no escribe en la hoja | **Sí** (2 mensajes) |
+| `enviarPruebaEncuesta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba (con la foto del producto si es MED) y su encuesta, con una alerta ALTA real; no escribe en la hoja | **Sí** (2 mensajes) |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
 | `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |
@@ -163,4 +165,4 @@ npm test
 
 ## Alcance
 
-Exclusivo HDV E.S.E. (Villavicencio). El envío no lee el contenido de los PDF; solo `diagnosticarImagenesPdf()` los descarga para evaluar la extracción de la foto del producto (autorizado por el referente el 20/10/2026). Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.
+Exclusivo HDV E.S.E. (Villavicencio). Los PDF de medicamentos se descargan solo para extraer la foto del producto (autorizado por el referente el 20/10/2026); su texto no se analiza. Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.
