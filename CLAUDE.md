@@ -8,7 +8,7 @@ Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecal
 
 ## Reglas de seguridad — NUNCA romper
 
-1. No enviar ningún mensaje real sin confirmación explícita del usuario. Las pruebas van al grupo "PRUEBA BOT" (cambiando `GA_CHAT_ID`), nunca a "HDV-Nuevo servicio".
+1. No enviar ningún mensaje real sin confirmación explícita del usuario. Las pruebas van al grupo "PRUEBA BOT" (cambiando `GA_CHAT_ID`), nunca al grupo de producción "Nuevo SF-HDV-SyD-InterSalud".
 2. Enviar solo a `GA_CHAT_ID`. Nunca a otro chatId. El plan Developer de GREEN-API permite 3 chats al mes.
 3. No usar `checkWhatsapp` ni `getContacts` (consumen cuota mensual).
 4. Error 466 (cuota excedida): registrar y no reintentar.

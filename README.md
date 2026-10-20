@@ -48,7 +48,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | `GA_API_URL` | URL base de la instancia GREEN-API (p. ej. `https://7107.api.greenapi.com`). |
 | `GA_ID` | ID de la instancia (`710722693364`). |
 | `GA_TOKEN` | Token de la instancia. **Secreto: no versionar, no compartir.** |
-| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "HDV-Nuevo servicio". |
+| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Nuevo SF-HDV-SyD-InterSalud" (definido por el referente el 20/10/2026; el mismo grupo donde publica el bot de Tecnovigilancia). |
 | `GA_MEDIA_URL` | Recomendada. Servidor de medios de GREEN-API para `sendFileByUpload`: copiar el valor **mediaUrl** de la instancia en la consola de GREEN-API (en la instancia `710722693364` es `https://7107.api.greenapi.com`, verificado el 20/10/2026). Si falta, se intenta `GA_API_URL` con `media` en lugar de `api` y, si ese servidor no existe, el propio `GA_API_URL`. |
 | `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
 
@@ -65,7 +65,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
    3. **`cargaInicial()`**: lee 5 páginas por fuente y llena el `Historico` con `enviado = CARGA_INICIAL`, **sin enviar mensajes**. Evita que el primer día se disparen alertas viejas. **Obligatorio antes de activar disparadores.**
    4. **`probarSinEnviar()`** (y, si quiere ver el formato con alertas ya registradas, **`vistaPrevia()`**): ejecuta todo el flujo y escribe los mensajes en el registro de ejecución (`[SIMULADO - no enviado]`), sin enviar ni escribir en `Historico`. Incluye el texto del resumen semanal.
    5. **`instalarDisparadores()`**: borra los disparadores del proyecto y crea los del bot.
-5. Pasar a producción: cambiar `GA_CHAT_ID` al grupo "HDV-Nuevo servicio" (solo con autorización explícita del referente).
+5. Pasar a producción: cambiar `GA_CHAT_ID` al grupo "Nuevo SF-HDV-SyD-InterSalud" (solo con autorización explícita del referente).
 
 ## Hoja de control
 
