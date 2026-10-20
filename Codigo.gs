@@ -7,13 +7,14 @@
 // Funciones publicas (orden de puesta en marcha):
 //   inicializarHoja() -> cargaInicial() -> probarSinEnviar() -> instalarDisparadores()
 // Operacion: revisarAlertas() y resumenSemanal() (por disparador).
-// Diagnostico (solo lectura): probarAcceso(), volcarMuestraHtml().
+// Diagnostico (solo lectura): probarAcceso(), volcarMuestraHtml(), vistaPrevia().
 // =====================================================================
 
 var TZ = "America/Bogota";
 var USER_AGENT = "HDV-ESE-ServicioFarmaceutico-AlertasINVIMA/1.0 (Apps Script; Villavicencio, Colombia)";
 var BASE_INVIMA = "https://app.invima.gov.co";
 
+var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
 var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje agrupado
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
@@ -119,15 +120,34 @@ function cargaInicial(paginas) {
 
 // Funcion principal (disparador cada 4 horas entre 6:00 y 20:00).
 function revisarAlertas() {
-  return ejecutar_({ nombre: "REVISION", enviar: true, persistir: true, paginas: 1 });
+  return ejecutar_({ nombre: "REVISION", enviar: true, persistir: true, paginas: MAX_PAGINAS_REVISION });
 }
 
 // Todo el flujo, con los mensajes escritos en el registro en vez de enviarse.
 // No escribe en el Historico, para no consumir claves.
 function probarSinEnviar() {
-  var r = ejecutar_({ nombre: "PRUEBA", enviar: false, persistir: false, paginas: 1 });
+  var r = ejecutar_({ nombre: "PRUEBA", enviar: false, persistir: false, paginas: MAX_PAGINAS_REVISION });
   resumenSemanal_(false);
   return r;
+}
+
+// Muestra en el registro el mensaje que generaria cada alerta de la pagina 0 de cada fuente,
+// este o no en el Historico. No envia mensajes ni escribe en la hoja.
+function vistaPrevia() {
+  var ss = abrirHoja_();
+  var reglas = cargarReglas_(ss);
+  var claves = clavesHistorico_(ss);
+  leerFuentes_(ss).forEach(function(f, i) {
+    if (i > 0) Utilities.sleep(ESPERA_FUENTES_MS);
+    var r = descargar_(urlPagina_(f.url, 0));
+    var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
+    Logger.log("[%s] HTTP %s, %s items en la pagina 0", f.fuente, r.codigo, items.length);
+    items.forEach(function(it) {
+      clasificar_(it, reglas);
+      var estado = claves[it.clave] ? "ya registrada en Historico" : "NUEVA";
+      Logger.log("[VISTA PREVIA - %s - %s]\n%s", it.clave, estado, formatearMensaje_(it));
+    });
+  });
 }
 
 // Resumen semanal (disparador lunes 7:00).
@@ -182,6 +202,7 @@ function ejecutar_(modo) {
           break; // en carga inicial, una pagina vacia marca el final
         }
         reg.leidos += items.length;
+        var nuevosPagina = 0;
         items.forEach(function(it) {
           if (claves[it.clave]) return;
           claves[it.clave] = true;
@@ -189,7 +210,10 @@ function ejecutar_(modo) {
           it.fechaDeteccion = new Date();
           nuevos.push(it);
           reg.nuevos++;
+          nuevosPagina++;
         });
+        // En revision, si la pagina ya tiene alertas conocidas no hay nada nuevo mas atras.
+        if (modo.nombre !== "CARGA" && nuevosPagina < items.length) break;
       }
     });
 

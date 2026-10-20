@@ -8,6 +8,12 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - La pestaña `Catalogo_HDV` pasa a llamarse `Listado_Terapeutico` (Listado Terapéutico de Medicamentos y Dispositivos Médicos del HDV).
 - `Reglas` admite la columna `motivo`, que se muestra en la coincidencia (`Uso frecuente: OZEMPIC`).
 
+### Corregido
+- `revisarAlertas()` y `probarSinEnviar()` leen la página siguiente cuando toda la página 0 es nueva (hasta 3 páginas). Antes, si INVIMA publicaba más de 8 alertas el mismo día, las sobrantes quedaban en la página 1 y se perdían.
+
+### Agregado
+- `vistaPrevia()`: mensaje de cada alerta de la página 0, aunque ya esté registrada; sin envío ni escritura.
+
 ### Corregido (revisión con las 80 alertas reales de la carga inicial)
 - "placas de Petri" ya no coincide con placas de osteosíntesis; "con balón" ya no coincide con balones de hemodinamia (términos específicos en `Listado_Terapeutico`).
 - Prefijos de `LoteSerial` que son palabras comunes (MICRO, MEDICAL, NEXT, ALFA, DELTA, ARGON, PRECISION…) ya no cuentan como laboratorio.

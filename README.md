@@ -8,7 +8,7 @@ Proyecto hermano de [alertas-whatsapp-farmacovigilancia](https://github.com/jsaa
 
 - **Proyecto:** Apps Script independiente (standalone), propiedad de `controldecalidadgases@hdv.gov.co`. Sin clasp (misma convención que el bot de Farmacovigilancia): el código se copia de `Codigo.gs` al editor.
 - **Hoja de control:** Google Sheets indicada en `SS_ID`.
-- **Fuentes:** HTML del servidor (Drupal Views) de `app.invima.gov.co/alertas/...`. En operación normal solo se lee `?page=0`.
+- **Fuentes:** HTML del servidor (Drupal Views) de `app.invima.gov.co/alertas/...`. Cada página trae 8 ítems. En operación normal se lee `?page=0` y, solo si toda la página es nueva, la siguiente (hasta 3 páginas), para no perder alertas cuando INVIMA publica más de 8 el mismo día (el 19/10/2026 publicó 9 de dispositivos).
 - **Disparadores:** `revisarAlertas` diario a las 6, 10, 14 y 18 h; `resumenSemanal` los lunes a las 7 h (America/Bogota, ±15 min).
 
 ```mermaid
@@ -62,7 +62,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
    1. **`inicializarHoja()`**: crea las pestañas con encabezados; precarga `Config_Fuentes` y `Reglas`. No modifica pestañas que ya tienen datos.
    2. Cargar `Listado_Terapeutico` y `Vigilancia` en la hoja.
    3. **`cargaInicial()`**: lee 5 páginas por fuente y llena el `Historico` con `enviado = CARGA_INICIAL`, **sin enviar mensajes**. Evita que el primer día se disparen alertas viejas. **Obligatorio antes de activar disparadores.**
-   4. **`probarSinEnviar()`**: ejecuta todo el flujo y escribe los mensajes en el registro de ejecución (`[SIMULADO - no enviado]`), sin enviar ni escribir en `Historico`. Incluye el texto del resumen semanal.
+   4. **`probarSinEnviar()`** (y, si quiere ver el formato con alertas ya registradas, **`vistaPrevia()`**): ejecuta todo el flujo y escribe los mensajes en el registro de ejecución (`[SIMULADO - no enviado]`), sin enviar ni escribir en `Historico`. Incluye el texto del resumen semanal.
    5. **`instalarDisparadores()`**: borra los disparadores del proyecto y crea los del bot.
 5. Pasar a producción: cambiar `GA_CHAT_ID` al grupo "HDV-Nuevo servicio" (solo con autorización explícita del referente).
 
@@ -133,6 +133,7 @@ PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
 | `instalarDisparadores()` | Recrea los disparadores | No |
 | `revisarAlertas()` | Función principal | **Sí** |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
+| `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
 | `probarAcceso()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA | No |
 
 ## Pruebas locales

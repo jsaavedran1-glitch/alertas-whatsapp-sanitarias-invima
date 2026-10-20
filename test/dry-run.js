@@ -155,7 +155,10 @@ function crearEntorno(opciones = {}) {
         }
         urlsInvima.push(url);
         const fuente = url.indexOf("dispositivos") >= 0 ? "DM" : "MED";
-        const html = /page=0/.test(url) || url.indexOf("page=") < 0 ? estado.html[fuente] : ENVOLTURA([]);
+        const pagina = Number((url.match(/page=(\d+)/) || [0, 0])[1]);
+        const html = estado.paginas && estado.paginas[fuente]
+          ? (estado.paginas[fuente][pagina] || ENVOLTURA([]))
+          : (pagina === 0 ? estado.html[fuente] : ENVOLTURA([]));
         return { getResponseCode: () => 200, getContentText: () => html };
       }
     },
@@ -369,6 +372,29 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
   assert.ok(resumen.includes("MED: \u{1F534} 1 | \u{1F7E0} 0 | ⚪ 1"));
   assert.ok(resumen.includes("PRODUCTO HOMEOPÁTICO X"));
   assert.ok(!resumen.includes("ETHIOPIAN"), "la carga inicial no entra al resumen");
+});
+
+prueba("revision sigue a la pagina siguiente solo si toda la pagina es nueva", () => {
+  const { g, hojas, urlsInvima, estado } = entornoListo();
+  const fila = (n) => filaMed("Alerta sanitaria sobre: PRODUCTO " + n, "Alerta%20No_" + n + "-2026.pdf");
+  // 9 alertas publicadas el mismo dia: 8 en la pagina 0 y 1 en la pagina 1; la pagina 2 ya es conocida.
+  estado.paginas = { MED: [ENVOLTURA([0, 1, 2, 3, 4, 5, 6, 7].map((k) => fila(900 + k))), ENVOLTURA([fila(908), fila(800)]), ENVOLTURA([fila(700)])], DM: [ENVOLTURA(DM_FILAS)] };
+  hojas.Historico.getRange(2, 1, 1, 1).setValues([["MED:AS:800-2026"]]);
+  g.revisarAlertas();
+  const claves = hojas.Historico.filas().map((f) => f.clave);
+  assert.ok(claves.includes("MED:AS:908-2026"), "la novena alerta (pagina 1) no se pierde");
+  assert.ok(!urlsInvima.some((u) => u.includes("medicamentos") && u.endsWith("page=2")), "se detiene al encontrar una alerta conocida");
+  assert.ok(urlsInvima.some((u) => u.includes("dispositivos") && u.endsWith("page=1")), "DM toda nueva -> revisa la pagina 1");
+});
+
+prueba("vistaPrevia muestra todas las alertas de la pagina 0 sin enviar ni escribir", () => {
+  const { g, hojas, enviados, registro } = entornoListo();
+  g.cargaInicial();
+  const filasAntes = hojas.Historico.d.length;
+  g.vistaPrevia();
+  assert.strictEqual(enviados.length, 0);
+  assert.strictEqual(hojas.Historico.d.length, filasAntes);
+  assert.ok(registro.some((l) => l.includes("[VISTA PREVIA - DM:IS:149-2026 - ya registrada en Historico]") && l.includes("[INVIMA-DM]")));
 });
 
 prueba("mas de 10 alertas inmediatas -> un solo mensaje agrupado", () => {
