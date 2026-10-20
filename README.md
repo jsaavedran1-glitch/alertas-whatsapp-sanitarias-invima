@@ -151,6 +151,7 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `enviarPruebaEncuesta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba y su encuesta, con una alerta ALTA real; no escribe en la hoja | **Sí** (2 mensajes) |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
+| `diagnosticarImagenesPdf()` | Descarga el PDF de hasta 4 alertas ALTA/MEDIA de la página 0, extrae las imágenes JPEG y pone la más grande en la pestaña `Diag_Imagenes` | No |
 | `probarAcceso()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA | No |
 
 ## Pruebas locales
@@ -161,4 +162,4 @@ npm test
 
 ## Alcance
 
-Exclusivo HDV E.S.E. (Villavicencio). Esta versión no descarga ni analiza el contenido de los PDF. Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.
+Exclusivo HDV E.S.E. (Villavicencio). El envío no lee el contenido de los PDF; solo `diagnosticarImagenesPdf()` los descarga para evaluar la extracción de la foto del producto (autorizado por el referente el 20/10/2026). Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.

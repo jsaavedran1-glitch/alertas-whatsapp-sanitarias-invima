@@ -7,7 +7,7 @@
 // Funciones publicas (orden de puesta en marcha):
 //   inicializarHoja() -> cargaInicial() -> probarSinEnviar() -> instalarDisparadores()
 // Operacion: revisarAlertas() y resumenSemanal() (por disparador).
-// Diagnostico (solo lectura): probarAcceso(), volcarMuestraHtml(), vistaPrevia().
+// Diagnostico (sin WhatsApp): probarAcceso(), volcarMuestraHtml(), vistaPrevia(), diagnosticarImagenesPdf().
 // =====================================================================
 
 var TZ = "America/Bogota";
@@ -884,6 +884,99 @@ function volcarMuestraHtml() {
       n++;
     }
   });
+}
+
+// Descarga el PDF de las alertas ALTA/MEDIA de la pagina 0 (maximo 4), extrae las imagenes JPEG
+// incrustadas y coloca la mas grande en la pestana Diag_Imagenes. No envia nada por WhatsApp.
+function diagnosticarImagenesPdf() {
+  var ss = abrirHoja_();
+  var reglas = cargarReglas_(ss);
+  var candidatas = [];
+  leerFuentes_(ss).forEach(function(f, i) {
+    if (i > 0) Utilities.sleep(ESPERA_FUENTES_MS);
+    var r = descargar_(urlPagina_(f.url, 0));
+    var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
+    items.forEach(function(it) {
+      clasificar_(it, reglas);
+      if (it.nivel !== "BAJA") candidatas.push(it);
+    });
+  });
+  candidatas = candidatas.slice(0, 4);
+
+  var hoja = ss.getSheetByName("Diag_Imagenes") || ss.insertSheet("Diag_Imagenes");
+  hoja.getImages().forEach(function(img) { img.remove(); });
+  hoja.clear();
+  hoja.getRange(1, 1, 1, 7).setValues([["clave", "titulo", "kb_pdf", "imagenes_en_pdf", "jpeg_encontrados",
+    "jpeg_elegido", "foto (columna H)"]]).setFontWeight("bold");
+  hoja.setColumnWidth(8, 320);
+
+  candidatas.forEach(function(it, k) {
+    var fila = k + 2;
+    Utilities.sleep(ESPERA_FUENTES_MS);
+    var resultado = { kbPdf: 0, totalImagenes: 0, jpegs: [] };
+    var error = "";
+    try {
+      var resp = UrlFetchApp.fetch(it.url, { muteHttpExceptions: true, headers: { "User-Agent": USER_AGENT } });
+      if (resp.getResponseCode() !== 200) throw new Error("HTTP " + resp.getResponseCode());
+      var bytes = resp.getBlob().getBytes();
+      resultado = extraerJpegsPdf_(bytes);
+      resultado.kbPdf = Math.round(bytes.length / 1024);
+    } catch (e) {
+      error = String(e);
+    }
+    var elegida = elegirFoto_(resultado.jpegs);
+    var descripcion = resultado.jpegs.map(function(j) { return j.kb + " KB " + j.ancho + "x" + j.alto; }).join("; ");
+    hoja.getRange(fila, 1, 1, 6).setValues([[it.clave, tituloCorto_(it.titulo), resultado.kbPdf, resultado.totalImagenes,
+      descripcion || (error || "ninguno"), elegida ? elegida.kb + " KB " + elegida.ancho + "x" + elegida.alto : "—"]]);
+    if (elegida) {
+      try {
+        hoja.setRowHeight(fila, 220);
+        hoja.insertImage(Utilities.newBlob(elegida.bytes, "image/jpeg", it.clave + ".jpg"), 8, fila);
+      } catch (e2) {
+        hoja.getRange(fila, 7).setValue("No se pudo insertar: " + e2);
+      }
+    }
+    Logger.log("[%s] PDF %s KB, %s imagenes, JPEG: %s -> elegida: %s %s", it.clave, resultado.kbPdf,
+      resultado.totalImagenes, descripcion || "ninguno", elegida ? elegida.kb + " KB" : "ninguna", error);
+  });
+  Logger.log("Diagnostico listo: revise la pestana Diag_Imagenes (%s alertas).", candidatas.length);
+}
+
+// Extrae las imagenes JPEG (/DCTDecode) incrustadas en un PDF a partir de sus bytes.
+function extraerJpegsPdf_(bytes) {
+  var s = Utilities.newBlob(bytes).getDataAsString("ISO-8859-1"); // 1 caracter = 1 byte
+  var total = (s.match(/\/Subtype\s*\/Image/g) || []).length;
+  var jpegs = [];
+  var pos = 0;
+  var idx;
+  while ((idx = s.indexOf("/DCTDecode", pos)) >= 0) {
+    pos = idx + 10;
+    var inicioDic = s.lastIndexOf("<<", idx);
+    var st = s.indexOf("stream", idx);
+    if (st < 0) break;
+    var ini = st + 6;
+    if (s.charAt(ini) === "\r") ini++;
+    if (s.charAt(ini) === "\n") ini++;
+    if (s.charCodeAt(ini) !== 0xFF || s.charCodeAt(ini + 1) !== 0xD8) continue;
+    var fin = s.indexOf("endstream", ini);
+    if (fin < 0) break;
+    while (fin > ini && (s.charAt(fin - 1) === "\n" || s.charAt(fin - 1) === "\r")) fin--;
+    var dic = s.substring(inicioDic, st);
+    jpegs.push({
+      bytes: bytes.slice(ini, fin),
+      kb: Math.round((fin - ini) / 1024),
+      ancho: Number((dic.match(/\/Width\s+(\d+)/) || [0, 0])[1]),
+      alto: Number((dic.match(/\/Height\s+(\d+)/) || [0, 0])[1])
+    });
+    pos = fin;
+  }
+  return { totalImagenes: total, jpegs: jpegs };
+}
+
+// La foto del producto suele ser el JPEG mas grande; se descartan logos y sellos (< 15 KB).
+function elegirFoto_(jpegs) {
+  return jpegs.filter(function(j) { return j.kb >= 15; })
+    .sort(function(a, b) { return b.bytes.length - a.bytes.length; })[0] || null;
 }
 
 // Registra los enlaces internos a /alertas/... para verificar rutas.

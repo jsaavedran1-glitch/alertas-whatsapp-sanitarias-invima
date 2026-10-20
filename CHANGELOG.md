@@ -4,6 +4,10 @@ Todas las fechas en hora de Colombia (America/Bogota).
 
 ## [1.4.0] - 2026-10-20
 
+### Agregado (diagnóstico)
+- `diagnosticarImagenesPdf()`: descarga el PDF de hasta 4 alertas ALTA/MEDIA, extrae los JPEG incrustados (`/DCTDecode`) y coloca el más grande (≥ 15 KB) en la pestaña `Diag_Imagenes`. Sin envíos.
+- `enviarPruebaEncuesta()`: mensaje de prueba y encuesta al grupo de pruebas.
+
 ### Agregado
 - Encuesta de WhatsApp (`sendPoll`) después de cada alerta 🔴 ALTA: "¿aplica al HDV?" con opciones Sí aplica / No aplica / En revisión. Cuenta dentro del máximo de 10 mensajes por ejecución; `probarSinEnviar()` la muestra en el registro.
 

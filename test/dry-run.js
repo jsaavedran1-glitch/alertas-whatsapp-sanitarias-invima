@@ -142,6 +142,10 @@ function crearEntorno(opciones = {}) {
     Logger: { log: (...a) => registro.push(util.format(...a)) },
     Utilities: {
       sleep: () => {},
+      newBlob: (bytes, tipo, nombre) => ({
+        bytes, tipo, nombre,
+        getDataAsString: () => Buffer.from(bytes.map((b) => b & 255)).toString("latin1")
+      }),
       formatDate: (d, tz, fmt) => {
         const p = (n) => String(n).padStart(2, "0");
         return fmt.replace("yyyy", d.getFullYear()).replace("MM", p(d.getMonth() + 1)).replace("dd", p(d.getDate()));
@@ -462,6 +466,27 @@ prueba("enviarPruebaEncuesta envia 1 mensaje marcado como prueba + 1 encuesta, s
   assert.ok(enviados[0].cuerpo.message.includes("*PRIORIDAD ALTA*"));
   assert.ok(enviados.every((e) => e.cuerpo.chatId === "120363412506101174@g.us"));
   assert.strictEqual(hojas.Historico.d.length, 1);
+});
+
+prueba("extraerJpegsPdf_ encuentra los JPEG incrustados y elige la foto mas grande", () => {
+  const { g } = crearEntorno();
+  const jpeg = (n) => [0xFF, 0xD8, 0xFF, 0xE0].concat(Array(n).fill(0x41), [0xFF, 0xD9]);
+  const ascii = (t) => Array.from(Buffer.from(t, "latin1"));
+  const objeto = (dic, datos) => ascii(dic + "\nstream\r\n").concat(datos, ascii("\r\nendstream\nendobj\n"));
+  const pdf = ascii("%PDF-1.4\n")
+    .concat(objeto("5 0 obj << /Type /XObject /Subtype /Image /Width 120 /Height 40 /Filter /DCTDecode /Length 9 >>", jpeg(3000)))
+    .concat(objeto("6 0 obj << /Type /XObject /Subtype /Image /Width 800 /Height 600 /Filter [/DCTDecode] /Length 9 >>", jpeg(60000)))
+    .concat(objeto("7 0 obj << /Type /XObject /Subtype /Image /Width 50 /Height 50 /Filter /FlateDecode /Length 3 >>", [1, 2, 3]));
+  const r = g.extraerJpegsPdf_(pdf.map((b) => (b > 127 ? b - 256 : b))); // bytes con signo, como en Apps Script
+  assert.strictEqual(r.totalImagenes, 3);
+  assert.strictEqual(r.jpegs.length, 2);
+  const foto = g.elegirFoto_(r.jpegs);
+  assert.strictEqual(foto.ancho, 800);
+  assert.strictEqual(foto.alto, 600);
+  assert.strictEqual(foto.bytes.length, 60006);
+  assert.strictEqual(foto.bytes[0] & 255, 0xFF);
+  assert.strictEqual(foto.bytes[foto.bytes.length - 1] & 255, 0xD9);
+  assert.strictEqual(g.elegirFoto_([r.jpegs[0]]), null, "el logo de 3 KB no se elige");
 });
 
 prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => {

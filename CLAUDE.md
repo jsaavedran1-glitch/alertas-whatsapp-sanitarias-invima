@@ -13,7 +13,7 @@ Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecal
 3. No usar `checkWhatsapp` ni `getContacts` (consumen cuota mensual).
 4. Error 466 (cuota excedida): registrar y no reintentar.
 5. Nunca mostrar, registrar ni versionar `GA_TOKEN`. Las credenciales solo en Propiedades del script.
-6. No descargar ni analizar el contenido de los PDF en esta versión.
+6. Los PDF solo se descargan para extraer la foto del producto (autorizado por el usuario el 20/10/2026, en fase de diagnóstico con `diagnosticarImagenesPdf()`). No analizar su texto.
 7. Exclusivo HDV Villavicencio: nada de Puerto Carreño.
 8. Antes de ejecutar una función en el editor, confirmar en el selector que es la correcta (ver CLAUDE.md del bot de Farmacovigilancia: el dropdown a veces no aplica la selección con un clic). Para reemplazar el código completo en Monaco usar `monaco.editor.getModels()[0].setValue(...)`.
 
