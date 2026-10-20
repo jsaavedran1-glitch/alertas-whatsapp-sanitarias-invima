@@ -158,6 +158,36 @@ function vistaPrevia() {
   });
 }
 
+// ENVIA DE VERDAD a GA_CHAT_ID un mensaje de prueba y su encuesta, con la primera alerta ALTA de la
+// pagina 0 (o la primera alerta si no hay ALTA). No escribe en el Historico. Usar solo con PRUEBA BOT.
+function enviarPruebaEncuesta() {
+  var ss = abrirHoja_();
+  var reglas = cargarReglas_(ss);
+  var candidata = null;
+  leerFuentes_(ss).some(function(f, i) {
+    if (i > 0) Utilities.sleep(ESPERA_FUENTES_MS);
+    var r = descargar_(urlPagina_(f.url, 0));
+    var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
+    items.forEach(function(it) { clasificar_(it, reglas); });
+    var alta = items.filter(function(it) { return it.nivel === "ALTA"; })[0];
+    candidata = alta || candidata || items[0] || null;
+    return !!alta;
+  });
+  if (!candidata) {
+    Logger.log("No se pudo leer ninguna alerta de INVIMA; no se envia nada.");
+    return;
+  }
+  candidata.nivel = "ALTA";
+  Logger.log("Enviando prueba a GA_CHAT_ID = %s con la alerta %s", PropertiesService.getScriptProperties().getProperty("GA_CHAT_ID"), candidata.clave);
+  var mensaje = emoji_(0x1F9EA) + " *MENSAJE DE PRUEBA* (no es una alerta nueva)\n\n" + formatearMensaje_(candidata);
+  var r = enviarWhatsApp_(mensaje, true);
+  Logger.log("Mensaje: %s", r.ok ? "enviado" : "NO enviado (" + (r.error || "") + ")");
+  if (!r.ok) return;
+  Utilities.sleep(ESPERA_MENSAJES_MS);
+  var re = enviarEncuesta_(preguntaEncuesta_(candidata), OPCIONES_ENCUESTA, true);
+  Logger.log("Encuesta: %s", re.ok ? "enviada" : "NO enviada (" + (re.error || "") + ")");
+}
+
 // Resumen semanal (disparador lunes 7:00).
 function resumenSemanal() {
   return resumenSemanal_(true);

@@ -454,6 +454,16 @@ prueba("encuestas: solo ALTA, cuentan en el maximo de 10 mensajes", () => {
   assert.ok(e3.registro.some((l) => l.includes("[SIMULADO - encuesta no enviada]") && l.includes("( ) \u2705 Sí aplica")));
 });
 
+prueba("enviarPruebaEncuesta envia 1 mensaje marcado como prueba + 1 encuesta, sin escribir", () => {
+  const { g, hojas, enviados } = entornoListo();
+  g.enviarPruebaEncuesta();
+  assert.deepStrictEqual(enviados.map((e) => e.url.split("/")[4]), ["sendMessage", "sendPoll"]);
+  assert.ok(enviados[0].cuerpo.message.startsWith("\u{1F9EA} *MENSAJE DE PRUEBA*"));
+  assert.ok(enviados[0].cuerpo.message.includes("*PRIORIDAD ALTA*"));
+  assert.ok(enviados.every((e) => e.cuerpo.chatId === "120363412506101174@g.us"));
+  assert.strictEqual(hojas.Historico.d.length, 1);
+});
+
 prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => {
   const { g, hojas, enviados, estado } = entornoListo();
   estado.codigoGreen = 466;

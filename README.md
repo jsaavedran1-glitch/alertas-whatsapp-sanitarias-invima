@@ -148,6 +148,7 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `probarSinEnviar()` | Flujo completo simulado | No |
 | `instalarDisparadores()` | Recrea los disparadores | No |
 | `revisarAlertas()` | Función principal | **Sí** |
+| `enviarPruebaEncuesta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba y su encuesta, con una alerta ALTA real; no escribe en la hoja | **Sí** (2 mensajes) |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
 | `probarAcceso()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA | No |
