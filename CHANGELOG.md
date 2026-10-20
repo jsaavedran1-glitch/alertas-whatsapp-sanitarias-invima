@@ -2,6 +2,14 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.4.0] - 2026-10-20
+
+### Agregado
+- Encuesta de WhatsApp (`sendPoll`) después de cada alerta 🔴 ALTA: "¿aplica al HDV?" con opciones Sí aplica / No aplica / En revisión. Cuenta dentro del máximo de 10 mensajes por ejecución; `probarSinEnviar()` la muestra en el registro.
+
+### Cambiado
+- Toda llamada a GREEN-API pasa por `llamarGreenApi_()`: solo `GA_CHAT_ID` de grupo, manejo del 466 sin reintento y token oculto en registros.
+
 ## [1.3.0] - 2026-10-20
 
 ### Cambiado

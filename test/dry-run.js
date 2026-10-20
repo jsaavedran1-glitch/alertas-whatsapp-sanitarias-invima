@@ -372,17 +372,22 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
     filaMed("Alerta sanitaria sobre: PRODUCTO HOMEOPÁTICO X", "Alerta%20No_332-2026.pdf")
   ]));
   g.revisarAlertas();
-  assert.strictEqual(enviados.length, 1);
+  assert.strictEqual(enviados.length, 2, "alerta ALTA + su encuesta");
   assert.strictEqual(enviados[0].cuerpo.chatId, "120363412506101174@g.us");
+  assert.ok(enviados[1].url.includes("/sendPoll/"));
+  assert.strictEqual(enviados[1].cuerpo.chatId, "120363412506101174@g.us");
+  assert.ok(enviados[1].cuerpo.message.includes("Alerta sanitaria No. 331-2026 (MED): ¿aplica al HDV?"));
+  assert.strictEqual(enviados[1].cuerpo.options.length, 3);
+  assert.strictEqual(enviados[1].cuerpo.multipleAnswers, false);
   assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"));
   assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));
   const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
   assert.strictEqual(porClave["MED:AS:332-2026"].enviado, "RESUMEN_SEMANAL");
   g.revisarAlertas();
-  assert.strictEqual(enviados.length, 1, "ninguna clave se envia dos veces");
+  assert.strictEqual(enviados.length, 2, "ninguna clave se envia dos veces");
   const resumen = g.resumenSemanal();
-  assert.strictEqual(enviados.length, 2);
+  assert.strictEqual(enviados.length, 3);
   assert.ok(resumen.includes("\u{1F48A} Medicamento: \u{1F534} 1 · \u{1F7E0} 0 · ⚪ 1"));
   assert.ok(resumen.includes("PRODUCTO HOMEOPÁTICO X"));
   assert.ok(!resumen.includes("ETHIOPIAN"), "la carga inicial no entra al resumen");
@@ -422,6 +427,31 @@ prueba("mas de 10 alertas inmediatas -> un solo mensaje agrupado", () => {
   assert.strictEqual(enviados.length, 2);
   assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA] \u{1F50E} *12 alertas nuevas ALTA/MEDIA*"));
   assert.ok(hojas.Historico.filas().every((f) => f.enviado === "SI"));
+});
+
+prueba("encuestas: solo ALTA, cuentan en el maximo de 10 mensajes", () => {
+  const { g, enviados, estado, registro } = entornoListo();
+  estado.html.DM = ENVOLTURA([]);
+  const alta = (n) => filaMed("Alerta sanitaria sobre: OZEMPIC lote " + n, "Alerta%20No_" + n + "-2026.pdf");
+  const media = (n) => filaMed("Alerta sanitaria sobre: RETIRO PRODUCTO " + n, "Alerta%20No_" + n + "-2026.pdf");
+  estado.html.MED = ENVOLTURA([alta(601), media(602)]);
+  g.revisarAlertas();
+  const sinAviso = enviados.filter((e) => !e.cuerpo.message.includes("No se pudo leer"));
+  assert.deepStrictEqual(sinAviso.map((e) => e.url.split("/")[4]), ["sendMessage", "sendPoll", "sendMessage"]);
+  // 5 ALTA + 1 MEDIA = 6 mensajes + 5 encuestas = 11 > 10 -> un solo mensaje agrupado, sin encuestas
+  const e2 = entornoListo();
+  e2.estado.html.DM = ENVOLTURA([]);
+  e2.estado.html.MED = ENVOLTURA([alta(611), alta(612), alta(613), alta(614), alta(615), media(616)]);
+  e2.g.revisarAlertas();
+  const envios2 = e2.enviados.filter((e) => !e.cuerpo.message.includes("No se pudo leer"));
+  assert.strictEqual(envios2.length, 1);
+  assert.ok(envios2[0].cuerpo.message.includes("*6 alertas nuevas ALTA/MEDIA*"));
+  // probarSinEnviar simula la encuesta en el registro
+  const e3 = entornoListo();
+  e3.estado.html.MED = ENVOLTURA([alta(621)]);
+  e3.g.probarSinEnviar();
+  assert.strictEqual(e3.enviados.length, 0);
+  assert.ok(e3.registro.some((l) => l.includes("[SIMULADO - encuesta no enviada]") && l.includes("( ) \u2705 Sí aplica")));
 });
 
 prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => {

@@ -15,7 +15,15 @@ var USER_AGENT = "HDV-ESE-ServicioFarmaceutico-AlertasINVIMA/1.0 (Apps Script; V
 var BASE_INVIMA = "https://app.invima.gov.co";
 
 var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
-var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje agrupado
+var MAX_MENSAJES = 10;           // por ejecucion, contando encuestas; si hay mas, un solo mensaje agrupado
+
+// Encuesta de WhatsApp que se envia despues de cada alerta ALTA (solo en envio individual).
+var ENCUESTA_ALTA = true;
+var OPCIONES_ENCUESTA = [
+  String.fromCodePoint(0x2705) + " Sí aplica: el HDV tiene el producto o el lote",
+  String.fromCodePoint(0x274C) + " No aplica al HDV",
+  String.fromCodePoint(0x1F50E) + " En revisión"
+];           // por ejecucion; si hay mas, un solo mensaje agrupado
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
@@ -247,9 +255,13 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
     SpreadsheetApp.flush();
   }
 
-  var lotes = (inmediatos.length <= MAX_MENSAJES)
-    ? inmediatos.map(function(it) { return { mensaje: formatearMensaje_(it), items: [it] }; })
-    : [{ mensaje: formatearAgrupado_(inmediatos), items: inmediatos }];
+  // Envio individual (con encuesta en las ALTA) solo si el total de mensajes cabe en MAX_MENSAJES.
+  var encuestas = ENCUESTA_ALTA ? inmediatos.filter(function(it) { return it.nivel === "ALTA"; }).length : 0;
+  var lotes = (inmediatos.length + encuestas <= MAX_MENSAJES)
+    ? inmediatos.map(function(it) {
+        return { mensaje: formatearMensaje_(it), items: [it], encuesta: (ENCUESTA_ALTA && it.nivel === "ALTA") ? preguntaEncuesta_(it) : null };
+      })
+    : [{ mensaje: formatearAgrupado_(inmediatos), items: inmediatos, encuesta: null }];
 
   var cuotaAgotada = false;
   lotes.forEach(function(lote, i) {
@@ -267,6 +279,11 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
           reg.estado = r.cuota ? "CUOTA_466" : "ERROR_ENVIO";
           reg.error = r.error || "";
         });
+      } else if (lote.encuesta) {
+        Utilities.sleep(ESPERA_MENSAJES_MS);
+        var re = enviarEncuesta_(lote.encuesta, OPCIONES_ENCUESTA, modo.enviar);
+        if (re.cuota) cuotaAgotada = true;
+        if (!re.ok) registros[lote.items[0].fuente].error = "Encuesta no enviada: " + (re.error || "");
       }
     }
     lote.items.forEach(function(it) {
@@ -651,6 +668,28 @@ function enviarWhatsApp_(mensaje, enviarReal) {
     Logger.log("[SIMULADO - no enviado]\n%s", mensaje);
     return { ok: true, simulado: true };
   }
+  return llamarGreenApi_("sendMessage", { message: mensaje });
+}
+
+// Encuesta de WhatsApp (sendPoll) al mismo GA_CHAT_ID, con una sola respuesta por persona.
+function enviarEncuesta_(pregunta, opciones, enviarReal) {
+  if (!enviarReal) {
+    Logger.log("[SIMULADO - encuesta no enviada]\n%s\n%s", pregunta, opciones.map(function(o) { return "( ) " + o; }).join("\n"));
+    return { ok: true, simulado: true };
+  }
+  return llamarGreenApi_("sendPoll", {
+    message: pregunta,
+    options: opciones.map(function(o) { return { optionName: o }; }),
+    multipleAnswers: false
+  });
+}
+
+function preguntaEncuesta_(it) {
+  return emoji_(0x1F534) + " " + encabezado_(it) + " (" + it.fuente + "): ¿aplica al HDV?";
+}
+
+// Unica salida hacia GREEN-API: siempre al GA_CHAT_ID (grupo), maneja el 466 sin reintentar.
+function llamarGreenApi_(metodo, datos) {
   var props = PropertiesService.getScriptProperties();
   var apiUrl = props.getProperty("GA_API_URL");
   var id = props.getProperty("GA_ID");
@@ -664,25 +703,27 @@ function enviarWhatsApp_(mensaje, enviarReal) {
     Logger.log("GA_CHAT_ID no corresponde a un grupo (@g.us); envio bloqueado.");
     return { ok: false, error: "GA_CHAT_ID no es un grupo" };
   }
+  var cuerpo = { chatId: chatId };
+  Object.keys(datos).forEach(function(k) { cuerpo[k] = datos[k]; });
   try {
-    var resp = UrlFetchApp.fetch(apiUrl.replace(/\/+$/, "") + "/waInstance" + id + "/sendMessage/" + token, {
+    var resp = UrlFetchApp.fetch(apiUrl.replace(/\/+$/, "") + "/waInstance" + id + "/" + metodo + "/" + token, {
       method: "post",
       contentType: "application/json",
-      payload: JSON.stringify({ chatId: chatId, message: mensaje }),
+      payload: JSON.stringify(cuerpo),
       muteHttpExceptions: true
     });
     var codigo = resp.getResponseCode();
     if (codigo === 200) return { ok: true, codigo: codigo };
     if (codigo === 466) {
-      Logger.log("GREEN-API 466: cuota mensual excedida. No se reintenta.");
+      Logger.log("GREEN-API 466 (%s): cuota mensual excedida. No se reintenta.", metodo);
       return { ok: false, cuota: true, codigo: codigo, error: "HTTP 466 cuota excedida" };
     }
-    var cuerpo = ocultar_(resp.getContentText().substring(0, 300), token);
-    Logger.log("GREEN-API HTTP %s: %s", codigo, cuerpo);
+    var texto = ocultar_(resp.getContentText().substring(0, 300), token);
+    Logger.log("GREEN-API %s HTTP %s: %s", metodo, codigo, texto);
     return { ok: false, codigo: codigo, error: "HTTP " + codigo };
   } catch (err) {
     var msg = ocultar_(String(err), token);
-    Logger.log("GREEN-API excepcion: %s", msg);
+    Logger.log("GREEN-API %s excepcion: %s", metodo, msg);
     return { ok: false, error: msg };
   }
 }
