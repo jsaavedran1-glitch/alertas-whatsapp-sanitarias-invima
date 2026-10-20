@@ -760,15 +760,28 @@ function llamarGreenApi_(metodo, datos) {
   }
   var cuerpo = { chatId: chatId };
   Object.keys(datos).forEach(function(k) { cuerpo[k] = datos[k]; });
-  // Los archivos van al servidor de medios (GA_MEDIA_URL, o el de la API con "media" en vez de "api")
-  // como multipart/form-data; el resto, como JSON al servidor de la API.
+  // Los archivos van como multipart/form-data al servidor de medios (GA_MEDIA_URL o, si falta, el de la
+  // API con "media" en vez de "api"); si ese servidor no responde (DNS, conexion), se intenta en el de
+  // la API. Un error de conexion significa que no se entrego nada, asi que no hay riesgo de duplicar.
+  // El resto de metodos va como JSON al servidor de la API.
   var archivo = metodo === "sendFileByUpload";
-  var base = archivo ? (props.getProperty("GA_MEDIA_URL") || apiUrl.replace(".api.", ".media.")) : apiUrl;
+  var bases = archivo
+    ? [props.getProperty("GA_MEDIA_URL"), apiUrl.replace(".api.", ".media."), apiUrl]
+    : [apiUrl];
+  bases = bases.filter(function(b, k) { return b && bases.indexOf(b) === k; });
   var opciones = archivo
     ? { method: "post", payload: cuerpo, muteHttpExceptions: true }
     : { method: "post", contentType: "application/json", payload: JSON.stringify(cuerpo), muteHttpExceptions: true };
-  try {
-    var resp = UrlFetchApp.fetch(base.replace(/\/+$/, "") + "/waInstance" + id + "/" + metodo + "/" + token, opciones);
+  var ultimoError = "";
+  for (var k = 0; k < bases.length; k++) {
+    var resp;
+    try {
+      resp = UrlFetchApp.fetch(String(bases[k]).replace(/\/+$/, "") + "/waInstance" + id + "/" + metodo + "/" + token, opciones);
+    } catch (err) {
+      ultimoError = ocultar_(String(err), token);
+      Logger.log("GREEN-API %s excepcion: %s", metodo, ultimoError);
+      continue;
+    }
     var codigo = resp.getResponseCode();
     if (codigo === 200) return { ok: true, codigo: codigo };
     if (codigo === 466) {
@@ -778,11 +791,8 @@ function llamarGreenApi_(metodo, datos) {
     var texto = ocultar_(resp.getContentText().substring(0, 300), token);
     Logger.log("GREEN-API %s HTTP %s: %s", metodo, codigo, texto);
     return { ok: false, codigo: codigo, error: "HTTP " + codigo };
-  } catch (err) {
-    var msg = ocultar_(String(err), token);
-    Logger.log("GREEN-API %s excepcion: %s", metodo, msg);
-    return { ok: false, error: msg };
   }
+  return { ok: false, error: ultimoError };
 }
 
 // Evita que el token aparezca en registros o en la hoja.

@@ -162,7 +162,8 @@ function crearEntorno(opciones = {}) {
     },
     UrlFetchApp: {
       fetch: (url, opts) => {
-        if (url.indexOf("greenapi") >= 0) {
+        if (/green-?api/.test(url)) {
+          if ((estado.hostsCaidos || []).some((h) => url.indexOf(h) >= 0)) throw new Error("Exception: Error de DNS: " + url);
           enviados.push({ url, cuerpo: typeof opts.payload === "string" ? JSON.parse(opts.payload) : opts.payload, contentType: opts.contentType });
           if (estado.falloFoto && url.indexOf("sendFileByUpload") >= 0) {
             return { getResponseCode: () => estado.falloFoto, getContentText: () => "error" };
@@ -513,6 +514,24 @@ prueba("alerta MED con foto: sendFileByUpload al servidor de medios con el texto
   assert.ok(!urlsInvima.some((u) => u.includes("Dispositivos_Medicos") && u.endsWith(".pdf")), "no descarga PDF de DM");
   const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
+});
+
+prueba("servidor de medios inexistente (DNS): reintenta la foto en el servidor de la API; GA_MEDIA_URL manda", () => {
+  let e = entornoConAlertaMed();
+  e.estado.hostsCaidos = ["7107.media.greenapi.com"];
+  e.g.revisarAlertas();
+  assert.strictEqual(e.enviados[0].url.split("/")[2], "7107.api.greenapi.com");
+  assert.strictEqual(e.enviados[0].url.split("/")[4], "sendFileByUpload");
+  assert.ok(e.registro.some((l) => l.includes("Error de DNS") && !l.includes(TOKEN)));
+  e = entornoConAlertaMed({ props: { GA_MEDIA_URL: "https://7107.media.green-api.com/" } });
+  e.g.revisarAlertas();
+  assert.ok(e.enviados[0].url.startsWith("https://7107.media.green-api.com/waInstance710722693364/sendFileByUpload/"));
+  e = entornoConAlertaMed();
+  e.estado.hostsCaidos = ["greenapi.com"];       // ningun servidor responde: texto tampoco sale, sin excepcion
+  e.g.revisarAlertas();
+  assert.strictEqual(e.enviados.length, 0);
+  const porClave = Object.fromEntries(e.hojas.Historico.filas().map((f) => [f.clave, f]));
+  assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "ERROR");
 });
 
 prueba("si la foto falla se envia como texto; sin PDF tambien; 466 en la foto no reintenta", () => {

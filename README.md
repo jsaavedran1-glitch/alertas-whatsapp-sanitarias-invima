@@ -49,7 +49,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | `GA_ID` | ID de la instancia (`710722693364`). |
 | `GA_TOKEN` | Token de la instancia. **Secreto: no versionar, no compartir.** |
 | `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "HDV-Nuevo servicio". |
-| `GA_MEDIA_URL` | Opcional. Servidor de medios de GREEN-API para `sendFileByUpload` (p. ej. `https://7107.media.greenapi.com`). Si falta, se deriva de `GA_API_URL`. |
+| `GA_MEDIA_URL` | Recomendada. Servidor de medios de GREEN-API para `sendFileByUpload`: copiar el valor **mediaUrl** de la instancia en la consola de GREEN-API. Si falta, se intenta `GA_API_URL` con `media` en lugar de `api` y, si ese servidor no existe, el propio `GA_API_URL`. |
 | `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
 
 `ULTIMO_AVISO_TECNICO` la crea el bot (fecha del último aviso de listado ilegible).

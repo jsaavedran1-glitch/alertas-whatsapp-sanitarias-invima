@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.6.1] - 2026-10-20
+
+### Corregido
+- Primera prueba real en PRUEBA BOT: `7107.media.greenapi.com` no existe (error de DNS) y la alerta salió como texto. Si el servidor de medios no responde, la foto se reintenta en el servidor de la API; `GA_MEDIA_URL` (valor *mediaUrl* de la consola) tiene prioridad.
+
 ## [1.6.0] - 2026-10-20
 
 ### Quitado
