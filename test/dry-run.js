@@ -403,6 +403,7 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
   assert.strictEqual(enviados[1].cuerpo.multipleAnswers, false);
   assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"));
   assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));
+  assert.ok(enviados[0].cuerpo.message.includes("\u2753 Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408\n\n_Bot Alertas INVIMA"));
   const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
   assert.strictEqual(porClave["MED:AS:332-2026"].enviado, "RESUMEN_SEMANAL");

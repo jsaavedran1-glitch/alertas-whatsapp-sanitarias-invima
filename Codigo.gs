@@ -631,8 +631,16 @@ var E = {
   PDF: 0x1F4C4,        // documento
   ENLACE: 0x1F517,     // enlace
   RESUMEN: 0x1F4CA,    // grafico
-  REVISAR: 0x1F50E     // lupa
+  REVISAR: 0x1F50E,    // lupa
+  DUDAS: 0x2753        // signo de pregunta
 };
+
+// Contacto para dudas: enlace wa.me que abre el chat del QF (no envia nada ni consume cuota).
+var CONTACTO_DUDAS = { nombre: "QF Juan Pablo Saavedra HDV", wa: "573245844408" };
+
+function lineaContacto_() {
+  return emoji_(E.DUDAS) + " Dudas: " + CONTACTO_DUDAS.nombre + " · https://wa.me/" + CONTACTO_DUDAS.wa;
+}
 
 function emojiNivel_(nivel) {
   return emoji_({ ALTA: 0x1F534, MEDIA: 0x1F7E0, BAJA: 0x26AA }[nivel]);
@@ -681,7 +689,7 @@ function formatearMensaje_(it) {
     lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
     it.coincidencia.split("; ").forEach(function(c) { lineas.push("• " + c); });
   }
-  lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, "", firma_());
+  lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, lineaContacto_(), "", firma_());
   return lineas.join("\n");
 }
 
@@ -694,7 +702,7 @@ function formatearAgrupado_(items) {
     if (it.coincidencia) lineas.push(emoji_(E.HDV) + " " + it.coincidencia.split("; ")[0]);
     lineas.push(emoji_(E.ENLACE) + " " + it.url);
   });
-  lineas.push("", firma_());
+  lineas.push("", lineaContacto_(), "", firma_());
   return lineas.join("\n");
 }
 

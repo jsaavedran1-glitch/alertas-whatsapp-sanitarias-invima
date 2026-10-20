@@ -10,6 +10,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - `enviarPruebaEncuesta()` envía la foto si la alerta es MED.
 
 ### Cambiado
+- Línea `❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408` al final de cada alerta y del mensaje agrupado: abre el chat del QF (las opciones de encuesta no admiten enlaces).
 - La encuesta de las alertas 🔴 pasa a ser acuse de socialización: "¿recibió y socializó esta información en su servicio?" (Recibida y socializada / Requiero más información con el contacto del QF Juan Pablo Saavedra, 3245844408).
 
 ## [1.4.2] - 2026-10-20
