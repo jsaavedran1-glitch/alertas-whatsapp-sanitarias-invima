@@ -29,6 +29,7 @@ var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
 var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coincidencias espurias con nombres cortos
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
+var PROPORCION_MAX_FOTO = 3;     // imagenes mas alargadas son franjas de encabezado, no fotos
 
 // Prefijos de LoteSerial que no identifican a un laboratorio o fabricante concreto.
 var LABORATORIOS_GENERICOS = ["GLOBAL", "LIFE", "AMERICAN", "GOLDEN", "MEDICAL", "PHARMA", "FARMA", "PLUS", "MICRO",
@@ -886,8 +887,10 @@ function volcarMuestraHtml() {
   });
 }
 
-// Descarga el PDF de las alertas ALTA/MEDIA de la pagina 0 (maximo 4), extrae las imagenes JPEG
-// incrustadas y coloca la mas grande en la pestana Diag_Imagenes. No envia nada por WhatsApp.
+// Descarga el PDF de las alertas sanitarias (no informes de seguridad, que solo traen los logos
+// de la plantilla) de la pagina 0, hasta 3 por fuente, extrae las imagenes JPEG incrustadas y
+// coloca las dos fotos candidatas mas grandes en la pestana Diag_Imagenes (columnas H e I).
+// No envia nada por WhatsApp.
 function diagnosticarImagenesPdf() {
   var ss = abrirHoja_();
   var reglas = cargarReglas_(ss);
@@ -896,19 +899,19 @@ function diagnosticarImagenesPdf() {
     if (i > 0) Utilities.sleep(ESPERA_FUENTES_MS);
     var r = descargar_(urlPagina_(f.url, 0));
     var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
-    items.forEach(function(it) {
+    items.filter(function(it) { return it.clave.indexOf(":AS:") >= 0; }).slice(0, 3).forEach(function(it) {
       clasificar_(it, reglas);
-      if (it.nivel !== "BAJA") candidatas.push(it);
+      candidatas.push(it);
     });
   });
-  candidatas = candidatas.slice(0, 4);
 
   var hoja = ss.getSheetByName("Diag_Imagenes") || ss.insertSheet("Diag_Imagenes");
   hoja.getImages().forEach(function(img) { img.remove(); });
   hoja.clear();
-  hoja.getRange(1, 1, 1, 7).setValues([["clave", "titulo", "kb_pdf", "imagenes_en_pdf", "jpeg_encontrados",
-    "jpeg_elegido", "foto (columna H)"]]).setFontWeight("bold");
+  hoja.getRange(1, 1, 1, 9).setValues([["clave", "titulo", "kb_pdf", "imagenes_en_pdf", "jpeg_encontrados",
+    "jpeg_elegido", "nivel", "foto 1", "foto 2"]]).setFontWeight("bold");
   hoja.setColumnWidth(8, 320);
+  hoja.setColumnWidth(9, 320);
 
   candidatas.forEach(function(it, k) {
     var fila = k + 2;
@@ -924,18 +927,20 @@ function diagnosticarImagenesPdf() {
     } catch (e) {
       error = String(e);
     }
-    var elegida = elegirFoto_(resultado.jpegs);
+    var fotos = fotosCandidatas_(resultado.jpegs).slice(0, 2);
+    var elegida = fotos[0] || null;
     var descripcion = resultado.jpegs.map(function(j) { return j.kb + " KB " + j.ancho + "x" + j.alto; }).join("; ");
-    hoja.getRange(fila, 1, 1, 6).setValues([[it.clave, tituloCorto_(it.titulo), resultado.kbPdf, resultado.totalImagenes,
-      descripcion || (error || "ninguno"), elegida ? elegida.kb + " KB " + elegida.ancho + "x" + elegida.alto : "—"]]);
-    if (elegida) {
+    hoja.getRange(fila, 1, 1, 7).setValues([[it.clave, tituloCorto_(it.titulo), resultado.kbPdf, resultado.totalImagenes,
+      descripcion || (error || "ninguno"), elegida ? elegida.kb + " KB " + elegida.ancho + "x" + elegida.alto : "—",
+      it.nivel]]);
+    if (elegida) hoja.setRowHeight(fila, 220);
+    fotos.forEach(function(foto, n) {
       try {
-        hoja.setRowHeight(fila, 220);
-        hoja.insertImage(Utilities.newBlob(elegida.bytes, "image/jpeg", it.clave + ".jpg"), 8, fila);
+        hoja.insertImage(Utilities.newBlob(foto.bytes, "image/jpeg", it.clave + "-" + (n + 1) + ".jpg"), 8 + n, fila);
       } catch (e2) {
-        hoja.getRange(fila, 7).setValue("No se pudo insertar: " + e2);
+        hoja.getRange(fila, 8 + n).setValue("No se pudo insertar: " + e2);
       }
-    }
+    });
     Logger.log("[%s] PDF %s KB, %s imagenes, JPEG: %s -> elegida: %s %s", it.clave, resultado.kbPdf,
       resultado.totalImagenes, descripcion || "ninguno", elegida ? elegida.kb + " KB" : "ninguna", error);
   });
@@ -973,10 +978,18 @@ function extraerJpegsPdf_(bytes) {
   return { totalImagenes: total, jpegs: jpegs };
 }
 
-// La foto del producto suele ser el JPEG mas grande; se descartan logos y sellos (< 15 KB).
+// Fotos candidatas, de mayor a menor: se descartan logos y sellos (< 15 KB) y franjas de
+// encabezado o pie de pagina (un lado mas de 3 veces el otro, p. ej. 1649x195).
+function fotosCandidatas_(jpegs) {
+  return jpegs.filter(function(j) {
+    var franja = j.ancho > 0 && j.alto > 0 && Math.max(j.ancho / j.alto, j.alto / j.ancho) > PROPORCION_MAX_FOTO;
+    return j.kb >= 15 && !franja;
+  }).sort(function(a, b) { return b.bytes.length - a.bytes.length; });
+}
+
+// La foto del producto suele ser la candidata mas grande.
 function elegirFoto_(jpegs) {
-  return jpegs.filter(function(j) { return j.kb >= 15; })
-    .sort(function(a, b) { return b.bytes.length - a.bytes.length; })[0] || null;
+  return fotosCandidatas_(jpegs)[0] || null;
 }
 
 // Registra los enlaces internos a /alertas/... para verificar rutas.

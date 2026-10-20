@@ -2,6 +2,13 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.4.1] - 2026-10-20
+
+### Cambiado (diagnóstico de fotos)
+- Primera corrida: en la alerta MED 329-2026 (BUSCAPINA falsificada) la imagen elegida fue la foto del producto falsificado; los informes de seguridad de DM solo traen los logos de la plantilla (sin JPEG).
+- `diagnosticarImagenesPdf()` toma solo alertas sanitarias (hasta 3 por fuente, cualquier nivel) y muestra las dos fotos candidatas más grandes (columnas H e I).
+- Se descartan las franjas de encabezado o pie de página (un lado más de 3 veces el otro).
+
 ## [1.4.0] - 2026-10-20
 
 ### Agregado (diagnóstico)

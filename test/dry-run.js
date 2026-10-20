@@ -489,6 +489,14 @@ prueba("extraerJpegsPdf_ encuentra los JPEG incrustados y elige la foto mas gran
   assert.strictEqual(g.elegirFoto_([r.jpegs[0]]), null, "el logo de 3 KB no se elige");
 });
 
+prueba("fotosCandidatas_ descarta la franja de encabezado aunque sea grande (caso BUSCAPINA 329-2026)", () => {
+  const { g } = crearEntorno();
+  const j = (kb, ancho, alto) => ({ kb, ancho, alto, bytes: new Array(kb * 1024) });
+  const fotos = g.fotosCandidatas_([j(36, 1649, 195), j(51, 900, 502), j(58, 612, 666), j(4, 200, 200)]);
+  assert.strictEqual(JSON.stringify(fotos.map((f) => f.ancho)), JSON.stringify([612, 900]));
+  assert.strictEqual(g.elegirFoto_([j(80, 1649, 195)]), null, "una franja sola no es foto");
+});
+
 prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => {
   const { g, hojas, enviados, estado } = entornoListo();
   estado.codigoGreen = 466;
