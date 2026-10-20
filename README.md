@@ -108,14 +108,29 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 
 ## Formato del mensaje
 
+Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (generados con `String.fromCodePoint`).
+
 ```
-[INVIMA-DM] 🔴 Informe de seguridad No. 149-2026
-Informe de seguridad sobre: Cementos óseos con gentamicina Heraeus® ... PALACOS® R+G...
-Tipo: Informe de seguridad | Publicada: 2026-10-19
-ID INVIMA: DI2609-00541 | Estado: SEGUIMIENTO      (solo DM)
-Coincidencia HDV: Cemento óseo con gentamicina (DM-0457)      (si aplica)
-PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
+[INVIMA-DM] 🔴 *PRIORIDAD ALTA* · 🩺 Dispositivo médico
+*Informe de seguridad No. 149-2026*
+
+📌 Cementos óseos con gentamicina Heraeus® ... PALACOS® R+G...
+📅 Publicada: 2026-10-19
+🆔 ID INVIMA: DI2609-00541 · Estado: SEGUIMIENTO      (solo DM)
+
+🏥 *Coincidencia HDV:*                                 (si aplica)
+• CEMENTO OSEO: CEMENTO OSEO ALTA VISCOCIDAD ... y 1 más
+• Vigilancia: GENTAMICINA
+
+📄 PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
+
+_Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 ```
+
+- Medicamentos: `💊 Medicamento`; dispositivos: `🩺 Dispositivo médico`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
+- El título se muestra sin "Alerta sanitaria sobre:" (ya va en el encabezado).
+- Si el año de la fecha del listado no coincide con el de la alerta (fechas erradas de INVIMA), se muestra `📅 Detectada: <fecha>` en lugar de `Publicada`.
+- El resumen semanal y el mensaje agrupado siguen el mismo estilo.
 
 ## Cómo agregar fuentes o reglas
 

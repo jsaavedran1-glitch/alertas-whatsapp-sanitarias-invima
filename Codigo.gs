@@ -287,7 +287,7 @@ function avisoTecnico_(fallidas, enviarReal) {
     return;
   }
   var mensaje = "[INVIMA] " + emoji_(0x26A0) + String.fromCodePoint(0xFE0F) + " No se pudo leer el listado" +
-    "\nFuente: " + fallidas.join(", ");
+    "\nFuente: " + fallidas.join(", ") + "\n_Se revisará de nuevo en la próxima ejecución._";
   var r = enviarWhatsApp_(mensaje, enviarReal);
   if (enviarReal && r.ok) props.setProperty("ULTIMO_AVISO_TECNICO", hoy);
 }
@@ -308,22 +308,23 @@ function resumenSemanal_(enviarReal) {
     if (f.nivel === "BAJA") bajas.push(f);
   });
 
-  var lineas = ["[INVIMA] " + emoji_(0x1F4CA) + " Resumen semanal " +
-    Utilities.formatDate(desde, TZ, "dd/MM/yyyy") + " - " + Utilities.formatDate(hasta, TZ, "dd/MM/yyyy")];
+  var lineas = ["[INVIMA] " + emoji_(E.RESUMEN) + " *Resumen semanal*",
+    "_" + Utilities.formatDate(desde, TZ, "dd/MM/yyyy") + " - " + Utilities.formatDate(hasta, TZ, "dd/MM/yyyy") + "_", ""];
   var fuentesResumen = Object.keys(conteo).sort();
   if (fuentesResumen.length === 0) lineas.push("Sin alertas nuevas detectadas en la semana.");
   fuentesResumen.forEach(function(fu) {
     var c = conteo[fu];
-    lineas.push(fu + ": " + emojiNivel_("ALTA") + " " + c.ALTA + " | " + emojiNivel_("MEDIA") + " " + c.MEDIA +
-      " | " + emojiNivel_("BAJA") + " " + c.BAJA);
+    lineas.push(etiquetaFuente_(fu) + ": " + emojiNivel_("ALTA") + " " + c.ALTA + " · " + emojiNivel_("MEDIA") + " " + c.MEDIA +
+      " · " + emojiNivel_("BAJA") + " " + c.BAJA);
   });
   if (bajas.length > 0) {
-    lineas.push("", "Baja prioridad (" + bajas.length + "):");
+    lineas.push("", emojiNivel_("BAJA") + " *Baja prioridad (" + bajas.length + "):*");
     bajas.slice(0, MAX_BAJA_RESUMEN).forEach(function(f) {
-      lineas.push("- [" + f.fuente + "] " + f.titulo, "  " + f.url_pdf);
+      lineas.push("• [" + f.fuente + "] " + tituloCorto_(f.titulo), "  " + emoji_(E.ENLACE) + " " + f.url_pdf);
     });
-    if (bajas.length > MAX_BAJA_RESUMEN) lineas.push("... y " + (bajas.length - MAX_BAJA_RESUMEN) + " mas en la hoja Historico.");
+    if (bajas.length > MAX_BAJA_RESUMEN) lineas.push("_... y " + (bajas.length - MAX_BAJA_RESUMEN) + " más en la hoja Historico._");
   }
+  lineas.push("", firma_());
   var mensaje = lineas.join("\n");
   var r = enviarWhatsApp_(mensaje, enviarReal);
   escribirLog_(ss, [{ fuente: "RESUMEN", leidos: filas.length, nuevos: bajas.length,
@@ -563,8 +564,28 @@ function emoji_(codigo) {
   return String.fromCodePoint(codigo);
 }
 
+// Emojis de los mensajes (con String.fromCodePoint para no danar la codificacion en el editor).
+var E = {
+  MED: 0x1F48A,        // pastilla
+  DM: 0x1FA7A,         // estetoscopio
+  TITULO: 0x1F4CC,     // chincheta
+  FECHA: 0x1F4C5,      // calendario
+  ID: 0x1F194,         // ID
+  HDV: 0x1F3E5,        // hospital
+  PDF: 0x1F4C4,        // documento
+  ENLACE: 0x1F517,     // enlace
+  RESUMEN: 0x1F4CA,    // grafico
+  REVISAR: 0x1F50E     // lupa
+};
+
 function emojiNivel_(nivel) {
   return emoji_({ ALTA: 0x1F534, MEDIA: 0x1F7E0, BAJA: 0x26AA }[nivel]);
+}
+
+function etiquetaFuente_(fuente) {
+  if (fuente === "MED") return emoji_(E.MED) + " Medicamento";
+  if (fuente === "DM") return emoji_(E.DM) + " Dispositivo médico";
+  return fuente;
 }
 
 function encabezado_(it) {
@@ -572,26 +593,52 @@ function encabezado_(it) {
   return base + (it.numero ? " No. " + it.numero + "-" + it.anio : "");
 }
 
+// Quita "Alerta sanitaria sobre:" / "Informe de seguridad sobre:", que ya va en el encabezado.
+function tituloCorto_(titulo) {
+  return String(titulo || "").replace(/^\s*(alerta\s+sanitaria|informe\s+de\s+seguridad)\s+sobre\s*:\s*/i, "").trim() || titulo;
+}
+
+// La fecha del listado de INVIMA no es confiable (alertas 2026 con fecha 2016-10-14): si su ano no
+// coincide con el de la alerta, se muestra la fecha en que el bot la detecto.
+function lineaFecha_(it) {
+  var anioFecha = String(it.fecha || "").slice(0, 4);
+  if (it.fecha && (!it.anio || anioFecha === String(it.anio))) return emoji_(E.FECHA) + " Publicada: " + it.fecha;
+  return emoji_(E.FECHA) + " Detectada: " + Utilities.formatDate(it.fechaDeteccion || new Date(), TZ, "yyyy-MM-dd");
+}
+
+function firma_() {
+  return "_Bot Alertas INVIMA · Servicio Farmacéutico HDV_";
+}
+
 function formatearMensaje_(it) {
   var lineas = [
-    "[INVIMA-" + it.fuente + "] " + emojiNivel_(it.nivel) + " " + encabezado_(it),
-    it.titulo,
-    "Tipo: " + (it.tipo || "—") + " | Publicada: " + (it.fecha || "—")
+    "[INVIMA-" + it.fuente + "] " + emojiNivel_(it.nivel) + " *PRIORIDAD " + it.nivel + "* · " + etiquetaFuente_(it.fuente),
+    "*" + encabezado_(it) + "*",
+    "",
+    emoji_(E.TITULO) + " " + tituloCorto_(it.titulo),
+    lineaFecha_(it)
   ];
-  if (it.idDm || it.estadoDm) lineas.push("ID INVIMA: " + (it.idDm || "—") + " | Estado: " + (it.estadoDm || "—"));
-  if (it.coincidencia) lineas.push("Coincidencia HDV: " + it.coincidencia);
-  lineas.push("PDF: " + it.url);
+  if (it.idDm || it.estadoDm) {
+    lineas.push(emoji_(E.ID) + " ID INVIMA: " + (it.idDm || "—") + " · Estado: " + (it.estadoDm || "—"));
+  }
+  if (it.coincidencia) {
+    lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
+    it.coincidencia.split("; ").forEach(function(c) { lineas.push("• " + c); });
+  }
+  lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, "", firma_());
   return lineas.join("\n");
 }
 
 // Mensaje unico cuando hay mas de MAX_MENSAJES alertas inmediatas en una ejecucion.
 function formatearAgrupado_(items) {
-  var lineas = ["[INVIMA] " + items.length + " alertas nuevas ALTA/MEDIA (resumen agrupado)"];
+  var lineas = ["[INVIMA] " + emoji_(E.REVISAR) + " *" + items.length + " alertas nuevas ALTA/MEDIA*", "_Resumen agrupado_"];
   items.forEach(function(it) {
-    lineas.push("", emojiNivel_(it.nivel) + " [" + it.fuente + "] " + encabezado_(it) + " - " + it.titulo);
-    if (it.coincidencia) lineas.push("Coincidencia HDV: " + it.coincidencia);
-    lineas.push(it.url);
+    lineas.push("", emojiNivel_(it.nivel) + " *" + encabezado_(it) + "* · " + etiquetaFuente_(it.fuente),
+      emoji_(E.TITULO) + " " + tituloCorto_(it.titulo));
+    if (it.coincidencia) lineas.push(emoji_(E.HDV) + " " + it.coincidencia.split("; ")[0]);
+    lineas.push(emoji_(E.ENLACE) + " " + it.url);
   });
+  lineas.push("", firma_());
   return lineas.join("\n");
 }
 

@@ -2,6 +2,12 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.3.0] - 2026-10-20
+
+### Cambiado
+- Mensajes con formato de WhatsApp y emojis: prioridad en negrita, 💊/🩺 según fuente, título sin "Alerta sanitaria sobre:", coincidencias en viñetas y firma del bot. Mismo estilo en el resumen semanal, el mensaje agrupado y el aviso técnico.
+- Si la fecha del listado de INVIMA no corresponde al año de la alerta, se muestra la fecha de detección.
+
 ## [1.2.0] - 2026-10-20
 
 ### Cambiado

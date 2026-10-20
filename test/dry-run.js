@@ -320,12 +320,26 @@ prueba("formato del mensaje inmediato", () => {
   const reglas = g.cargarReglas_(g.abrirHoja_());
   const it = g.clasificar_(g.parsearListado_(ENVOLTURA(DM_FILAS), "DM")[1], reglas);
   const lineas = g.formatearMensaje_(it).split("\n");
-  assert.strictEqual(lineas[0], "[INVIMA-DM] \u{1F534} Informe de seguridad No. 149-2026");
-  assert.ok(lineas[1].startsWith("Informe de seguridad sobre: Cementos óseos"));
-  assert.strictEqual(lineas[2], "Tipo: Informe de seguridad | Publicada: 2026-10-19");
-  assert.strictEqual(lineas[3], "ID INVIMA: DI2609-00541 | Estado: SEGUIMIENTO");
-  assert.strictEqual(lineas[4], "Coincidencia HDV: GENTAMICINA: Cemento óseo con gentamicina (DM-0457)");
-  assert.ok(lineas[5].startsWith("PDF: https://app.invima.gov.co/alertas/ckfinder/"));
+  assert.deepStrictEqual(lineas.slice(0, 5), [
+    "[INVIMA-DM] \u{1F534} *PRIORIDAD ALTA* · \u{1FA7A} Dispositivo médico",
+    "*Informe de seguridad No. 149-2026*",
+    "",
+    "\u{1F4CC} Cementos óseos con gentamicina Heraeus® Cemento óseo radiopaco a base de PMMA PALACOS® R+G...",
+    "\u{1F4C5} Publicada: 2026-10-19"
+  ]);
+  assert.strictEqual(lineas[5], "\u{1F194} ID INVIMA: DI2609-00541 · Estado: SEGUIMIENTO");
+  assert.strictEqual(lineas[7], "\u{1F3E5} *Coincidencia HDV:*");
+  assert.strictEqual(lineas[8], "• GENTAMICINA: Cemento óseo con gentamicina (DM-0457)");
+  assert.ok(lineas.some((l) => l.startsWith("\u{1F4C4} PDF: https://app.invima.gov.co/alertas/ckfinder/")));
+  assert.strictEqual(lineas[lineas.length - 1], "_Bot Alertas INVIMA · Servicio Farmacéutico HDV_");
+});
+
+prueba("fecha del listado no confiable -> se muestra la fecha de deteccion", () => {
+  const { g } = entornoListo();
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const it = g.clasificar_(g.parsearListado_(ENVOLTURA(MED_FILAS), "MED")[0], reglas); // fecha 2016-10-14, alerta 2026
+  it.fechaDeteccion = new Date(2026, 9, 20);
+  assert.ok(g.formatearMensaje_(it).includes("\u{1F4C5} Detectada: 2026-10-20"));
 });
 
 prueba("probarSinEnviar no envia ni escribe en Historico", () => {
@@ -360,8 +374,8 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
   g.revisarAlertas();
   assert.strictEqual(enviados.length, 1);
   assert.strictEqual(enviados[0].cuerpo.chatId, "120363412506101174@g.us");
-  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} Alerta sanitaria No. 331-2026"));
-  assert.ok(enviados[0].cuerpo.message.includes("Coincidencia HDV: Vigilancia: Butilbromuro de hioscina"));
+  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"));
+  assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));
   const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
   assert.strictEqual(porClave["MED:AS:332-2026"].enviado, "RESUMEN_SEMANAL");
@@ -369,7 +383,7 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
   assert.strictEqual(enviados.length, 1, "ninguna clave se envia dos veces");
   const resumen = g.resumenSemanal();
   assert.strictEqual(enviados.length, 2);
-  assert.ok(resumen.includes("MED: \u{1F534} 1 | \u{1F7E0} 0 | ⚪ 1"));
+  assert.ok(resumen.includes("\u{1F48A} Medicamento: \u{1F534} 1 · \u{1F7E0} 0 · ⚪ 1"));
   assert.ok(resumen.includes("PRODUCTO HOMEOPÁTICO X"));
   assert.ok(!resumen.includes("ETHIOPIAN"), "la carga inicial no entra al resumen");
 });
@@ -406,7 +420,7 @@ prueba("mas de 10 alertas inmediatas -> un solo mensaje agrupado", () => {
   g.revisarAlertas();
   // 1 agrupado + 1 aviso tecnico por DM vacio
   assert.strictEqual(enviados.length, 2);
-  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA] 12 alertas nuevas"));
+  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA] \u{1F50E} *12 alertas nuevas ALTA/MEDIA*"));
   assert.ok(hojas.Historico.filas().every((f) => f.enviado === "SI"));
 });
 
