@@ -9,6 +9,11 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - Columna `otras_imagenes` con las imágenes no JPEG; una foto por fila, escalada a la celda.
 - `reiniciarDiagnosticoImagenes()` para empezar de cero.
 
+### Resultado con las 80 alertas de `Historico`
+- MED (alertas sanitarias): 38 de 40 con foto del producto en JPEG; con la proporción máxima en 5 (antes 3) se recupera la foto apaisada de 319-2026 (885x282) → 39 de 40. La restante (252-2026) solo trae el banner.
+- DM (alertas e informes): ninguna foto. Todos los PDF traen las mismas 4 imágenes de plantilla (3000x326, encabezado y pie); el peso extra de las alertas DM (≈1,1 MB) no son fotos.
+- Las imágenes FlateDecode DeviceGray del mismo tamaño que un JPEG son máscaras de transparencia, no fotos.
+
 ## [1.4.1] - 2026-10-20
 
 ### Cambiado (diagnóstico de fotos)

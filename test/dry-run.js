@@ -510,6 +510,7 @@ prueba("fotosCandidatas_ descarta la franja de encabezado aunque sea grande (cas
   const fotos = g.fotosCandidatas_([j(36, 1649, 195), j(51, 900, 502), j(58, 612, 666), j(4, 200, 200)]);
   assert.strictEqual(JSON.stringify(fotos.map((f) => f.ancho)), JSON.stringify([612, 900]));
   assert.strictEqual(g.elegirFoto_([j(80, 1649, 195)]), null, "una franja sola no es foto");
+  assert.strictEqual(g.elegirFoto_([j(33, 885, 282), j(36, 1649, 195)]).ancho, 885, "foto apaisada de 319-2026");
 });
 
 prueba("diagnosticarImagenesPdf recorre Historico por lotes y continua donde quedo", () => {

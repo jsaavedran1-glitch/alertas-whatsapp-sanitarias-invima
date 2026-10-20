@@ -29,7 +29,7 @@ var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
 var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coincidencias espurias con nombres cortos
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
-var PROPORCION_MAX_FOTO = 3;     // imagenes mas alargadas son franjas de encabezado, no fotos
+var PROPORCION_MAX_FOTO = 5;     // mas alargadas son franjas de encabezado (1649x195 = 8,5); fotos hasta 885x282 = 3,1
 var MAX_MS_DIAGNOSTICO = 270000; // diagnosticarImagenesPdf se detiene a los 4,5 min (limite de 6)
 
 // Prefijos de LoteSerial que no identifican a un laboratorio o fabricante concreto.
@@ -1040,7 +1040,7 @@ function describirOtrasImagenesPdf_(s) {
 }
 
 // Fotos candidatas, de mayor a menor: se descartan logos y sellos (< 15 KB) y franjas de
-// encabezado o pie de pagina (un lado mas de 3 veces el otro, p. ej. 1649x195).
+// encabezado o pie de pagina (un lado mas de 5 veces el otro, p. ej. 1649x195).
 function fotosCandidatas_(jpegs) {
   return jpegs.filter(function(j) {
     var franja = j.ancho > 0 && j.alto > 0 && Math.max(j.ancho / j.alto, j.alto / j.ancho) > PROPORCION_MAX_FOTO;
