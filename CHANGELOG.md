@@ -8,6 +8,12 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - La pestaña `Catalogo_HDV` pasa a llamarse `Listado_Terapeutico` (Listado Terapéutico de Medicamentos y Dispositivos Médicos del HDV).
 - `Reglas` admite la columna `motivo`, que se muestra en la coincidencia (`Uso frecuente: OZEMPIC`).
 
+### Corregido (revisión con las 80 alertas reales de la carga inicial)
+- "placas de Petri" ya no coincide con placas de osteosíntesis; "con balón" ya no coincide con balones de hemodinamia (términos específicos en `Listado_Terapeutico`).
+- Prefijos de `LoteSerial` que son palabras comunes (MICRO, MEDICAL, NEXT, ALFA, DELTA, ARGON, PRECISION…) ya no cuentan como laboratorio.
+- La coincidencia se agrupa por término, el más específico primero, con un producto de ejemplo: `ENDOTRAQUEAL: TUBO ENDOTRAQUEAL Nº 3.0 SIN NEUMO (…) y 18 más`.
+- Sets de bomba de infusión e insertos tibiales con términos que sí aparecen en las alertas.
+
 ### Agregado
 - 53 marcas comerciales de medicamentos de uso frecuente como reglas ALTA (motivo "Uso frecuente").
 

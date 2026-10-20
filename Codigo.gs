@@ -22,7 +22,8 @@ var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coin
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
 
 // Prefijos de LoteSerial que no identifican a un laboratorio o fabricante concreto.
-var LABORATORIOS_GENERICOS = ["GLOBAL", "LIFE", "AMERICAN", "GOLDEN", "MEDICAL", "PHARMA", "FARMA", "PLUS"];
+var LABORATORIOS_GENERICOS = ["GLOBAL", "LIFE", "AMERICAN", "GOLDEN", "MEDICAL", "PHARMA", "FARMA", "PLUS", "MICRO",
+  "LABORATORIOS", "HUMAN", "NEXT", "ALFA", "DELTA", "ARGON", "PRECISION", "WELL", "MAX", "SEVEN", "EVER", "WINNER"];
 var HORAS_REVISION = [6, 10, 14, 18];
 
 var COL_ENVIADO = 12; // columna "enviado" en Historico
@@ -483,17 +484,25 @@ function clasificar_(it, reglas) {
   var tLote = normalizar_(it.titulo); // los lotes se comparan sin singularizar
   var coincidencias = [];
   var laboratorios = [];
+  var porTermino = {};
   reglas.listado.forEach(function(c) {
     if (c.tipo && c.tipo !== it.fuente) return;
     var lote = c.lotes.filter(function(l) { return contieneTermino_(tLote, l); })[0];
     if (lote) {
       coincidencias.push("Lote " + lote + " dispensado en HDV: " + c.etiqueta);
-    } else if (c.terminos.some(function(x) { return contieneTermino_(t, x); })) {
-      coincidencias.push(c.etiqueta);
+    } else {
+      var termino = c.terminos.filter(function(x) { return contieneTermino_(t, x); })
+        .sort(function(a, b) { return b.length - a.length; })[0];
+      if (termino) (porTermino[termino] = porTermino[termino] || []).push(c.etiqueta);
     }
     c.laboratorios.forEach(function(l) {
       if (contieneTermino_(tLote, l) && laboratorios.indexOf(l) < 0) laboratorios.push(l);
     });
+  });
+  // Un renglon por termino encontrado, el mas especifico primero, con un producto de ejemplo.
+  Object.keys(porTermino).sort(function(a, b) { return b.length - a.length; }).forEach(function(x) {
+    var productos = porTermino[x];
+    coincidencias.push(x + ": " + productos[0] + (productos.length > 1 ? " y " + (productos.length - 1) + " más" : ""));
   });
   reglas.vigilancia.forEach(function(v) {
     if (contieneTermino_(t, v.norm)) coincidencias.push("Vigilancia: " + v.texto);
@@ -502,8 +511,6 @@ function clasificar_(it, reglas) {
     if (contieneTermino_(t, r.norm)) coincidencias.push((r.motivo || "Regla") + ": " + r.texto);
   });
   var hay = function(lista) { return lista.some(function(r) { return contieneTermino_(t, r.norm); }); };
-  // Las coincidencias por lote van primero: son las mas especificas.
-  coincidencias.sort(function(a, b) { return (b.indexOf("Lote ") === 0) - (a.indexOf("Lote ") === 0); });
 
   if (coincidencias.length > 0) {
     it.nivel = "ALTA";

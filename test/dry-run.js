@@ -246,7 +246,7 @@ prueba("clasificacion ALTA / MEDIA / BAJA", () => {
   assert.strictEqual(med[2].nivel, "BAJA");                 // CBD manda sobre "falsificado"
   assert.strictEqual(dm[0].nivel, "MEDIA");                 // informe de seguridad
   assert.strictEqual(dm[1].nivel, "ALTA");                  // Listado Terapeutico: gentamicina / Palacos
-  assert.strictEqual(dm[1].coincidencia, "Cemento óseo con gentamicina (DM-0457)");
+  assert.strictEqual(dm[1].coincidencia, "GENTAMICINA: Cemento óseo con gentamicina (DM-0457)");
   assert.strictEqual(dm[2].nivel, "BAJA");
   // El Listado Terapeutico DM no aplica a MED.
   const medGenta = g.clasificar_(g.parsearListado_(ENVOLTURA([filaMed("Alerta sanitaria sobre: GENTAMICINA 80 MG", "Alerta%20No_1-2026.pdf")]), "MED")[0], reglas);
@@ -264,7 +264,7 @@ prueba("combinaciones y plurales en Listado Terapeutico/Vigilancia", () => {
   const med = (titulo) => g.clasificar_(g.parsearListado_(ENVOLTURA([filaMed(titulo, "Alerta%20No_1-2026.pdf")]), "MED")[0], reglas);
   const dm = (titulo) => g.clasificar_(g.parsearListado_(ENVOLTURA([filaDm(titulo, "X", "Alerta sanitaria",
     "ALERTAS%20SANITARIAS/Dispositivos_Medicos/2026/Octubre", "Alerta%20No_%20%2399-2026.pdf")]), "DM")[0], reglas);
-  assert.strictEqual(med("Alerta sanitaria sobre: TAZOBACTAM genérico").coincidencia, "PIPERACILINA/TAZOBACTAM 4.5G AMP (MED-0101)");
+  assert.strictEqual(med("Alerta sanitaria sobre: TAZOBACTAM genérico").coincidencia, "TAZOBACTAM: PIPERACILINA/TAZOBACTAM 4.5G AMP (MED-0101)");
   assert.strictEqual(med("Alerta sanitaria sobre: SULFAMETOXAZOL suspensión").coincidencia, "Vigilancia: TRIMETOPRIMA+SULFAMETOXAZOL");
   assert.strictEqual(dm("Alerta sanitaria sobre: Catéteres venosos centrales").nivel, "ALTA");
   assert.strictEqual(med("Alerta sanitaria sobre: LOTES FALSIFICADOS").nivel, "MEDIA");
@@ -289,6 +289,21 @@ prueba("lote dispensado -> ALTA; laboratorio proveedor -> MEDIA", () => {
   assert.strictEqual(med("Alerta sanitaria sobre: producto 1234").nivel, "BAJA", "lote corto ignorado");
 });
 
+prueba("coincidencias agrupadas por termino, el mas especifico primero", () => {
+  const { g, hojas } = entornoListo();
+  hojas.Listado_Terapeutico.getRange(3, 1, 3, 5).setValues([
+    ["DM-1", "TUBO ENDOTRAQUEAL Nº 7.0", "ENDOTRAQUEAL", "", "DM"],
+    ["DM-2", "TUBO ENDOTRAQUEAL Nº 7.5", "ENDOTRAQUEAL", "", "DM"],
+    ["DM-3", "BALON PERIFERICO", "BALON", "", "DM"]
+  ]);
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const it = g.clasificar_(g.parsearListado_(ENVOLTURA([filaDm("Alerta sanitaria sobre: Tubo endotraqueal con y sin balón SunMed", "X",
+    "Alerta sanitaria", "ALERTAS%20SANITARIAS/Dispositivos_Medicos/2026/Octubre", "Alerta%20No_%20%23311-2026.pdf")]), "DM")[0], reglas);
+  assert.strictEqual(it.coincidencia, "ENDOTRAQUEAL: TUBO ENDOTRAQUEAL Nº 7.0 (DM-1) y 1 más; BALON: BALON PERIFERICO (DM-3)");
+  const micro = g.laboratoriosDe_("MICRO; MEDTRONIC");
+  assert.strictEqual(JSON.stringify(micro), JSON.stringify(["MEDTRONIC"]));
+});
+
 prueba("marca comercial de uso frecuente -> ALTA con su motivo", () => {
   const { g } = entornoListo();
   const reglas = g.cargarReglas_(g.abrirHoja_());
@@ -306,7 +321,7 @@ prueba("formato del mensaje inmediato", () => {
   assert.ok(lineas[1].startsWith("Informe de seguridad sobre: Cementos óseos"));
   assert.strictEqual(lineas[2], "Tipo: Informe de seguridad | Publicada: 2026-10-19");
   assert.strictEqual(lineas[3], "ID INVIMA: DI2609-00541 | Estado: SEGUIMIENTO");
-  assert.strictEqual(lineas[4], "Coincidencia HDV: Cemento óseo con gentamicina (DM-0457)");
+  assert.strictEqual(lineas[4], "Coincidencia HDV: GENTAMICINA: Cemento óseo con gentamicina (DM-0457)");
   assert.ok(lineas[5].startsWith("PDF: https://app.invima.gov.co/alertas/ckfinder/"));
 });
 
