@@ -21,6 +21,10 @@ var URL_INDICE_ALERTAS = "https://app.invima.gov.co/alertas";
 
 var REGEX_PDF_ALERTA = /ckfinder\/userfiles\/files\/ALERTAS[^"']+\.pdf/gi;
 
+// El listado DM tambien publica informes de seguridad en otra carpeta
+// (INFORMES DE SEGURIDAD/...), con numeracion propia (verificado 2026-10-20).
+var REGEX_PDF_LISTADO = /ckfinder\/userfiles\/files\/(?:ALERTAS|INFORMES)[^"']+\.pdf/gi;
+
 // ---------------------------------------------------------------------
 // Paso 1 - Prueba de acceso (no envia mensajes, no escribe en la hoja)
 // ---------------------------------------------------------------------
@@ -53,8 +57,8 @@ function probarAcceso() {
   });
 }
 
-// Registra el HTML que rodea los dos primeros enlaces PDF de cada fuente,
-// para conocer el marcado real de cada item (titulo, tipo, fecha, "Ver").
+// Registra el HTML que rodea los dos primeros enlaces PDF (alertas o informes)
+// de cada fuente, para conocer el marcado real de cada item (titulo, tipo, fecha, "Ver").
 // Solo lectura: no envia mensajes ni escribe en la hoja.
 function volcarMuestraHtml() {
   FUENTES_DEFECTO.forEach(function(f, i) {
@@ -65,7 +69,7 @@ function volcarMuestraHtml() {
     });
     var html = resp.getContentText("UTF-8");
     Logger.log("[%s] HTTP=%s", f.fuente, resp.getResponseCode());
-    var re = new RegExp(REGEX_PDF_ALERTA.source, "gi");
+    var re = new RegExp(REGEX_PDF_LISTADO.source, "gi");
     var m, n = 0, desde = 0;
     while ((m = re.exec(html)) !== null && n < 2) {
       var ini = Math.max(desde, m.index - 2500);

@@ -15,6 +15,7 @@ const assert = require("assert");
 // HTML de ejemplo con el formato de enlaces observado en probarAcceso() (2026-10-20).
 const HTML_EJEMPLO =
   '<a href="/alertas/dispositivos-medicos-invima">DM</a>' +
+  '<a href="https://app.invima.gov.co/alertas/ckfinder/userfiles/files/INFORMES%20DE%20SEGURIDAD/Dispositivos/2026/Octubre/Informe%20de%20seguridad%20No_%20%23148-2026%20.pdf">Ver</a>' +
   '<a href="https://app.invima.gov.co/alertas/ckfinder/userfiles/files/ALERTAS%20SANITARIAS/medicamentos_pbiologicos/2026/OCTUBRE/Alerta%20No_330-2026%20-%20ETHIOPIAN%20BLACK%20SEED%20OIL.pdf">Ver</a>' +
   '<a href="https://app.invima.gov.co/alertas/ckfinder/userfiles/files/ALERTAS%20SANITARIAS/Dispositivos_Medicos/2026/Octubre/Alerta%20No_%20%23355-2026%20-%20HemoslL%20AcuStar.pdf">Ver</a>';
 
@@ -50,7 +51,8 @@ function cargarCodigo() {
 (function () {
   const { contexto, registro } = cargarCodigo();
   contexto.volcarMuestraHtml();
-  assert.ok(registro.some((l) => l.includes("MUESTRA 1")), "muestra registrada");
+  assert.ok(registro.some((l) => l.includes("MUESTRA 1") && l.includes("INFORMES")), "muestra de informe registrada");
+  assert.ok(registro.some((l) => l.includes("MUESTRA 2")), "segunda muestra registrada");
   console.log("OK volcarMuestraHtml");
 })();
 
