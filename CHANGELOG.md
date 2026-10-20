@@ -5,6 +5,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 ## [1.6.1] - 2026-10-20
 
 ### Corregido
+- Verificado en PRUEBA BOT (20/10/2026, 2:03 p. m.): alerta MED 329-2026 enviada como foto del producto con el texto al pie y el enlace `wa.me`, con `GA_MEDIA_URL` = `https://7107.api.greenapi.com` (el valor *mediaUrl* de esta instancia es el mismo servidor de la API).
 - Primera prueba real en PRUEBA BOT: `7107.media.greenapi.com` no existe (error de DNS) y la alerta salió como texto. Si el servidor de medios no responde, la foto se reintenta en el servidor de la API; `GA_MEDIA_URL` (valor *mediaUrl* de la consola) tiene prioridad.
 
 ## [1.6.0] - 2026-10-20
