@@ -17,7 +17,8 @@ var BASE_INVIMA = "https://app.invima.gov.co";
 var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
 var MAX_MENSAJES = 10;           // por ejecucion, contando encuestas; si hay mas, un solo mensaje agrupado
 
-// Encuesta de WhatsApp que se envia despues de cada alerta ALTA (solo en envio individual).
+// Encuesta de WhatsApp que se envia despues de cada alerta ALTA (solo en envio individual): acuse de
+// socializacion en cada servicio. "Ver votos" en WhatsApp muestra quien confirmo y cuando.
 var ENCUESTA_ALTA = true;
 // Foto del producto (extraida del PDF) con el texto de la alerta al pie. Solo MED: en el
 // diagnostico de 80 alertas, 39 de 40 de medicamentos traen foto; las de DM solo la plantilla.
@@ -25,9 +26,9 @@ var FOTO_EN_ALERTAS = true;
 var FUENTES_CON_FOTO = ["MED"];
 var MAX_CARACTERES_PIE = 1024;    // si el texto es mas largo, la alerta sale solo como texto
 var OPCIONES_ENCUESTA = [
-  String.fromCodePoint(0x2705) + " Sí aplica: el HDV tiene el producto o el lote",
-  String.fromCodePoint(0x274C) + " No aplica al HDV",
-  String.fromCodePoint(0x1F50E) + " En revisión"
+  String.fromCodePoint(0x2705) + " Recibida y socializada en mi servicio",
+  String.fromCodePoint(0x1F4E5) + " Recibida, pendiente de socializar",
+  String.fromCodePoint(0x2753) + " Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408"
 ];           // por ejecucion; si hay mas, un solo mensaje agrupado
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
@@ -769,7 +770,7 @@ function enviarEncuesta_(pregunta, opciones, enviarReal) {
 }
 
 function preguntaEncuesta_(it) {
-  return emoji_(0x1F534) + " " + encabezado_(it) + " (" + it.fuente + "): ¿aplica al HDV?";
+  return emoji_(0x1F534) + " " + encabezado_(it) + " (" + it.fuente + "): ¿recibió y socializó esta información en su servicio?";
 }
 
 // Unica salida hacia GREEN-API: siempre al GA_CHAT_ID (grupo), maneja el 466 sin reintentar.

@@ -9,6 +9,9 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - Propiedad opcional `GA_MEDIA_URL`; constantes `FOTO_EN_ALERTAS`, `FUENTES_CON_FOTO`, `MAX_CARACTERES_PIE`.
 - `enviarPruebaEncuesta()` envía la foto si la alerta es MED.
 
+### Cambiado
+- La encuesta de las alertas 🔴 pasa a ser acuse de socialización: "¿recibió y socializó esta información en su servicio?" (Recibida y socializada / Recibida, pendiente de socializar / Requiero más información con el contacto del QF Juan Pablo Saavedra, 3245844408).
+
 ## [1.4.2] - 2026-10-20
 
 ### Cambiado (diagnóstico de fotos)
