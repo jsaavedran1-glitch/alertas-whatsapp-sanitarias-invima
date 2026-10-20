@@ -397,9 +397,9 @@ prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resume
   assert.ok(enviados[1].url.includes("/sendPoll/"));
   assert.strictEqual(enviados[1].cuerpo.chatId, "120363412506101174@g.us");
   assert.ok(enviados[1].cuerpo.message.includes("Alerta sanitaria No. 331-2026 (MED): ¿recibió y socializó esta información en su servicio?"));
-  assert.strictEqual(enviados[1].cuerpo.options.length, 3);
+  assert.strictEqual(enviados[1].cuerpo.options.length, 2);
   assert.ok(enviados[1].cuerpo.options.every((o) => o.optionName.length <= 100), "WhatsApp: opciones de hasta 100 caracteres");
-  assert.ok(enviados[1].cuerpo.options[2].optionName.includes("3245844408"));
+  assert.ok(enviados[1].cuerpo.options[1].optionName.includes("3245844408"));
   assert.strictEqual(enviados[1].cuerpo.multipleAnswers, false);
   assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"));
   assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));

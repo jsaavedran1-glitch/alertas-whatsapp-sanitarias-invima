@@ -10,7 +10,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - `enviarPruebaEncuesta()` envía la foto si la alerta es MED.
 
 ### Cambiado
-- La encuesta de las alertas 🔴 pasa a ser acuse de socialización: "¿recibió y socializó esta información en su servicio?" (Recibida y socializada / Recibida, pendiente de socializar / Requiero más información con el contacto del QF Juan Pablo Saavedra, 3245844408).
+- La encuesta de las alertas 🔴 pasa a ser acuse de socialización: "¿recibió y socializó esta información en su servicio?" (Recibida y socializada / Requiero más información con el contacto del QF Juan Pablo Saavedra, 3245844408).
 
 ## [1.4.2] - 2026-10-20
 

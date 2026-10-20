@@ -27,7 +27,6 @@ var FUENTES_CON_FOTO = ["MED"];
 var MAX_CARACTERES_PIE = 1024;    // si el texto es mas largo, la alerta sale solo como texto
 var OPCIONES_ENCUESTA = [
   String.fromCodePoint(0x2705) + " Recibida y socializada en mi servicio",
-  String.fromCodePoint(0x1F4E5) + " Recibida, pendiente de socializar",
   String.fromCodePoint(0x2753) + " Requiero más información: QF Juan Pablo Saavedra HDV · 3245844408"
 ];           // por ejecucion; si hay mas, un solo mensaje agrupado
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
