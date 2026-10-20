@@ -1,0 +1,9 @@
+# Credenciales / configuracion local de clasp (no versionar)
+.clasp.json
+.clasprc.json
+.env
+*.token
+
+# Node / sistema
+node_modules/
+.DS_Store
