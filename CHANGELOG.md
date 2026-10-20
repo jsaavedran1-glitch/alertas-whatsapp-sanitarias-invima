@@ -2,6 +2,13 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.4.2] - 2026-10-20
+
+### Cambiado (diagnóstico de fotos)
+- `diagnosticarImagenesPdf()` recorre todas las alertas de `Historico` (80) por lotes de ≈4,5 min; cada ejecución continúa donde quedó la anterior y al final registra `RESUMEN FUENTE:TIPO: n de N con foto`.
+- Columna `otras_imagenes` con las imágenes no JPEG; una foto por fila, escalada a la celda.
+- `reiniciarDiagnosticoImagenes()` para empezar de cero.
+
 ## [1.4.1] - 2026-10-20
 
 ### Cambiado (diagnóstico de fotos)

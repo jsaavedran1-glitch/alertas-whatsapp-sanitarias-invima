@@ -151,7 +151,8 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `enviarPruebaEncuesta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba y su encuesta, con una alerta ALTA real; no escribe en la hoja | **Sí** (2 mensajes) |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
-| `diagnosticarImagenesPdf()` | Descarga el PDF de hasta 4 alertas ALTA/MEDIA de la página 0, extrae las imágenes JPEG y pone la más grande en la pestaña `Diag_Imagenes` | No |
+| `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |
+| `reiniciarDiagnosticoImagenes()` | Vacía `Diag_Imagenes` para repetir el diagnóstico desde cero | No |
 | `probarAcceso()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA | No |
 
 ## Pruebas locales

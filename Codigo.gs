@@ -30,6 +30,7 @@ var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
 var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coincidencias espurias con nombres cortos
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
 var PROPORCION_MAX_FOTO = 3;     // imagenes mas alargadas son franjas de encabezado, no fotos
+var MAX_MS_DIAGNOSTICO = 270000; // diagnosticarImagenesPdf se detiene a los 4,5 min (limite de 6)
 
 // Prefijos de LoteSerial que no identifican a un laboratorio o fabricante concreto.
 var LABORATORIOS_GENERICOS = ["GLOBAL", "LIFE", "AMERICAN", "GOLDEN", "MEDICAL", "PHARMA", "FARMA", "PLUS", "MICRO",
@@ -887,69 +888,100 @@ function volcarMuestraHtml() {
   });
 }
 
-// Descarga el PDF de las alertas sanitarias (no informes de seguridad, que solo traen los logos
-// de la plantilla) de la pagina 0, hasta 3 por fuente, extrae las imagenes JPEG incrustadas y
-// coloca las dos fotos candidatas mas grandes en la pestana Diag_Imagenes (columnas H e I).
-// No envia nada por WhatsApp.
+// Recorre las alertas de Historico (todas las fuentes y tipos), descarga su PDF, extrae las
+// imagenes JPEG incrustadas y coloca la foto candidata mas grande en la pestana Diag_Imagenes.
+// Trabaja por lotes: cada ejecucion continua donde quedo la anterior (claves ya presentes en
+// Diag_Imagenes) y se detiene antes del limite de 6 minutos de Apps Script. No envia nada.
 function diagnosticarImagenesPdf() {
+  var inicio = Date.now();
   var ss = abrirHoja_();
-  var reglas = cargarReglas_(ss);
-  var candidatas = [];
-  leerFuentes_(ss).forEach(function(f, i) {
-    if (i > 0) Utilities.sleep(ESPERA_FUENTES_MS);
-    var r = descargar_(urlPagina_(f.url, 0));
-    var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
-    items.filter(function(it) { return it.clave.indexOf(":AS:") >= 0; }).slice(0, 3).forEach(function(it) {
-      clasificar_(it, reglas);
-      candidatas.push(it);
-    });
+  var hoja = hojaDiagnostico_(ss, false);
+  var hechas = {};
+  leerFilas_(hoja).forEach(function(f) { if (f.clave) hechas[String(f.clave)] = true; });
+  var pendientes = leerFilas_(ss.getSheetByName("Historico")).filter(function(h) {
+    return h.clave && h.url_pdf && !hechas[String(h.clave)];
   });
+  var procesadas = 0;
+  for (var k = 0; k < pendientes.length; k++) {
+    if (Date.now() - inicio > MAX_MS_DIAGNOSTICO) break;
+    diagnosticarPdf_(hoja, pendientes[k]);
+    procesadas++;
+  }
+  var faltan = pendientes.length - procesadas;
+  Logger.log("Lote listo: %s alertas revisadas, faltan %s.%s", procesadas, faltan,
+    faltan > 0 ? " Vuelva a ejecutar diagnosticarImagenesPdf() para continuar." : "");
+  if (faltan === 0) resumirDiagnostico_(hoja);
+}
 
+// Borra la pestana Diag_Imagenes para repetir el diagnostico desde cero.
+function reiniciarDiagnosticoImagenes() {
+  hojaDiagnostico_(abrirHoja_(), true);
+  Logger.log("Diag_Imagenes reiniciada.");
+}
+
+function hojaDiagnostico_(ss, limpiar) {
   var hoja = ss.getSheetByName("Diag_Imagenes") || ss.insertSheet("Diag_Imagenes");
-  hoja.getImages().forEach(function(img) { img.remove(); });
-  hoja.clear();
-  hoja.getRange(1, 1, 1, 9).setValues([["clave", "titulo", "kb_pdf", "imagenes_en_pdf", "jpeg_encontrados",
-    "jpeg_elegido", "nivel", "foto 1", "foto 2"]]).setFontWeight("bold");
-  hoja.setColumnWidth(8, 320);
-  hoja.setColumnWidth(9, 320);
+  var enc = ["clave", "titulo", "kb_pdf", "imagenes_en_pdf", "jpeg_encontrados", "jpeg_elegido", "nivel",
+    "otras_imagenes", "foto"];
+  var actual = hoja.getLastRow() > 0 ? hoja.getRange(1, 1, 1, enc.length).getValues()[0].join("|") : "";
+  if (limpiar || actual !== enc.join("|")) {
+    hoja.getImages().forEach(function(img) { img.remove(); });
+    hoja.clear();
+    hoja.getRange(1, 1, 1, enc.length).setValues([enc]).setFontWeight("bold");
+    hoja.setColumnWidth(8, 260);
+    hoja.setColumnWidth(9, 320);
+  }
+  return hoja;
+}
 
-  candidatas.forEach(function(it, k) {
-    var fila = k + 2;
+function diagnosticarPdf_(hoja, h) {
+  var fila = hoja.getLastRow() + 1;
+  var resultado = { kbPdf: 0, totalImagenes: 0, jpegs: [], otras: [] };
+  var error = "";
+  try {
     Utilities.sleep(ESPERA_FUENTES_MS);
-    var resultado = { kbPdf: 0, totalImagenes: 0, jpegs: [] };
-    var error = "";
+    var resp = UrlFetchApp.fetch(String(h.url_pdf), { muteHttpExceptions: true, headers: { "User-Agent": USER_AGENT } });
+    if (resp.getResponseCode() !== 200) throw new Error("HTTP " + resp.getResponseCode());
+    var bytes = resp.getBlob().getBytes();
+    resultado = extraerJpegsPdf_(bytes);
+    resultado.kbPdf = Math.round(bytes.length / 1024);
+  } catch (e) {
+    error = String(e);
+  }
+  var elegida = elegirFoto_(resultado.jpegs);
+  var jpegs = resultado.jpegs.map(function(j) { return j.kb + " KB " + j.ancho + "x" + j.alto; }).join("; ");
+  hoja.getRange(fila, 1, 1, 8).setValues([[h.clave, tituloCorto_(String(h.titulo)), resultado.kbPdf,
+    resultado.totalImagenes, error || jpegs || "ninguno",
+    elegida ? elegida.kb + " KB " + elegida.ancho + "x" + elegida.alto : "—", h.nivel || "—",
+    resultado.otras.join("; ") || "—"]]);
+  if (elegida) {
     try {
-      var resp = UrlFetchApp.fetch(it.url, { muteHttpExceptions: true, headers: { "User-Agent": USER_AGENT } });
-      if (resp.getResponseCode() !== 200) throw new Error("HTTP " + resp.getResponseCode());
-      var bytes = resp.getBlob().getBytes();
-      resultado = extraerJpegsPdf_(bytes);
-      resultado.kbPdf = Math.round(bytes.length / 1024);
-    } catch (e) {
-      error = String(e);
+      hoja.setRowHeight(fila, 160);
+      var img = hoja.insertImage(Utilities.newBlob(elegida.bytes, "image/jpeg", h.clave + ".jpg"), 9, fila);
+      var escala = Math.min(310 / (elegida.ancho || 310), 150 / (elegida.alto || 150), 1);
+      img.setWidth(Math.round((elegida.ancho || 310) * escala)).setHeight(Math.round((elegida.alto || 150) * escala));
+    } catch (e2) {
+      hoja.getRange(fila, 9).setValue("No se pudo insertar: " + e2);
     }
-    var fotos = fotosCandidatas_(resultado.jpegs).slice(0, 2);
-    var elegida = fotos[0] || null;
-    var descripcion = resultado.jpegs.map(function(j) { return j.kb + " KB " + j.ancho + "x" + j.alto; }).join("; ");
-    if (resultado.otras && resultado.otras.length > 0) {
-      descripcion = (descripcion || "ninguno") + " | otras: " + resultado.otras.join("; ");
-    }
-    hoja.getRange(fila, 1, 1, 7).setValues([[it.clave, tituloCorto_(it.titulo), resultado.kbPdf, resultado.totalImagenes,
-      descripcion || (error || "ninguno"), elegida ? elegida.kb + " KB " + elegida.ancho + "x" + elegida.alto : "—",
-      it.nivel]]);
-    if (elegida) hoja.setRowHeight(fila, 220);
-    fotos.forEach(function(foto, n) {
-      try {
-        var img = hoja.insertImage(Utilities.newBlob(foto.bytes, "image/jpeg", it.clave + "-" + (n + 1) + ".jpg"), 8 + n, fila);
-        var escala = Math.min(310 / (foto.ancho || 310), 210 / (foto.alto || 210), 1);
-        img.setWidth(Math.round((foto.ancho || 310) * escala)).setHeight(Math.round((foto.alto || 210) * escala));
-      } catch (e2) {
-        hoja.getRange(fila, 8 + n).setValue("No se pudo insertar: " + e2);
-      }
-    });
-    Logger.log("[%s] PDF %s KB, %s imagenes, JPEG: %s -> elegida: %s %s", it.clave, resultado.kbPdf,
-      resultado.totalImagenes, descripcion || "ninguno", elegida ? elegida.kb + " KB" : "ninguna", error);
+  }
+  Logger.log("[%s] PDF %s KB, %s imagenes, JPEG: %s | otras: %s -> foto: %s %s", h.clave, resultado.kbPdf,
+    resultado.totalImagenes, jpegs || "ninguno", resultado.otras.join("; ") || "—",
+    elegida ? elegida.kb + " KB" : "ninguna", error);
+}
+
+// Al terminar las 80 alertas: cuantas tienen foto por fuente y tipo (AS/IS).
+function resumirDiagnostico_(hoja) {
+  var conteo = {};
+  leerFilas_(hoja).forEach(function(f) {
+    var partes = String(f.clave).split(":");
+    var grupo = partes[0] + ":" + partes[1];
+    conteo[grupo] = conteo[grupo] || { total: 0, foto: 0 };
+    conteo[grupo].total++;
+    if (f.jpeg_elegido && f.jpeg_elegido !== "—") conteo[grupo].foto++;
   });
-  Logger.log("Diagnostico listo: revise la pestana Diag_Imagenes (%s alertas).", candidatas.length);
+  Object.keys(conteo).sort().forEach(function(g) {
+    Logger.log("RESUMEN %s: %s de %s con foto", g, conteo[g].foto, conteo[g].total);
+  });
 }
 
 // Extrae las imagenes JPEG (/DCTDecode) incrustadas en un PDF a partir de sus bytes.

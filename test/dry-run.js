@@ -99,6 +99,15 @@ class HojaFalsa {
     return this.getRange(1, 1, this.d.length, nc);
   }
   setFrozenRows() {}
+  setColumnWidth() {}
+  setRowHeight() {}
+  clear() { this.d = []; this.imagenes = []; }
+  getImages() { return (this.imagenes || []).map((img) => ({ remove: () => { this.imagenes = this.imagenes.filter((x) => x !== img); } })); }
+  insertImage(blob, col, fila) {
+    const img = { blob, col, fila, setWidth() { return img; }, setHeight() { return img; } };
+    (this.imagenes = this.imagenes || []).push(img);
+    return img;
+  }
   // Utilidad de prueba: filas como objetos.
   filas() {
     const [enc, ...resto] = this.d;
@@ -158,6 +167,10 @@ function crearEntorno(opciones = {}) {
           return { getResponseCode: () => estado.codigoGreen, getContentText: () => '{"idMessage":"X"}' };
         }
         urlsInvima.push(url);
+        if (/\.pdf$/i.test(url)) {
+          const bytes = (estado.pdfs || {})[url];
+          return { getResponseCode: () => (bytes ? 200 : 404), getBlob: () => ({ getBytes: () => bytes }) };
+        }
         const fuente = url.indexOf("dispositivos") >= 0 ? "DM" : "MED";
         const pagina = Number((url.match(/page=(\d+)/) || [0, 0])[1]);
         const html = estado.paginas && estado.paginas[fuente]
@@ -497,6 +510,38 @@ prueba("fotosCandidatas_ descarta la franja de encabezado aunque sea grande (cas
   const fotos = g.fotosCandidatas_([j(36, 1649, 195), j(51, 900, 502), j(58, 612, 666), j(4, 200, 200)]);
   assert.strictEqual(JSON.stringify(fotos.map((f) => f.ancho)), JSON.stringify([612, 900]));
   assert.strictEqual(g.elegirFoto_([j(80, 1649, 195)]), null, "una franja sola no es foto");
+});
+
+prueba("diagnosticarImagenesPdf recorre Historico por lotes y continua donde quedo", () => {
+  const { g, hojas, estado, registro } = entornoListo();
+  const ascii = (t) => Array.from(Buffer.from(t, "latin1"));
+  const jpeg = [0xFF, 0xD8].concat(Array(20000).fill(0x41), [0xFF, 0xD9]);
+  const pdfFoto = ascii("%PDF-1.4\n<< /Subtype /Image /Width 600 /Height 500 /Filter /DCTDecode >>\nstream\n")
+    .concat(jpeg, ascii("\nendstream\n<< /Subtype /Image /Width 90 /Height 40 /Filter /FlateDecode >>\nstream\nxx\nendstream"));
+  estado.pdfs = { "https://x/a.pdf": pdfFoto, "https://x/b.pdf": ascii("%PDF-1.4\n") };
+  hojas.Historico.getRange(2, 1, 3, 12).setValues([
+    ["MED:AS:1-2026", "MED", "1", "2026", "Alerta sanitaria sobre: A", "Alerta sanitaria", "", "https://x/a.pdf", "", "ALTA", "", "SI"],
+    ["DM:AS:2-2026", "DM", "2", "2026", "Alerta sanitaria sobre: B", "Alerta sanitaria", "", "https://x/b.pdf", "", "BAJA", "", "SI"],
+    ["DM:IS:3-2026", "DM", "3", "2026", "Informe de seguridad sobre: C", "Informe de seguridad", "", "https://x/c.pdf", "", "MEDIA", "", "SI"]
+  ]);
+  g.MAX_MS_DIAGNOSTICO = -1;                      // sin tiempo: no procesa nada y avisa
+  g.diagnosticarImagenesPdf();
+  assert.ok(registro.some((l) => l.includes("faltan 3")));
+  g.MAX_MS_DIAGNOSTICO = 270000;
+  g.diagnosticarImagenesPdf();
+  const filas = hojas.Diag_Imagenes.filas();
+  assert.strictEqual(JSON.stringify(filas.map((f) => f.clave)), JSON.stringify(["MED:AS:1-2026", "DM:AS:2-2026", "DM:IS:3-2026"]));
+  assert.strictEqual(filas[0].jpeg_elegido, "20 KB 600x500");
+  assert.ok(filas[0].otras_imagenes.startsWith("90x40 FlateDecode"));
+  assert.strictEqual(filas[1].jpeg_elegido, "—");
+  assert.ok(String(filas[2].jpeg_encontrados).includes("HTTP 404"));
+  assert.strictEqual(hojas.Diag_Imagenes.imagenes.length, 1);
+  assert.ok(registro.some((l) => l === "RESUMEN MED:AS: 1 de 1 con foto"));
+  g.diagnosticarImagenesPdf();                    // nada pendiente: no repite
+  assert.strictEqual(hojas.Diag_Imagenes.filas().length, 3);
+  g.reiniciarDiagnosticoImagenes();
+  assert.strictEqual(hojas.Diag_Imagenes.d.length, 1);
+  assert.strictEqual(hojas.Diag_Imagenes.imagenes.length, 0);
 });
 
 prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => {
