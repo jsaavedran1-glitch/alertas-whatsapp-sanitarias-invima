@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.9.3] - 2026-10-21
+
+### Documentación
+- README: sección "Flujo de funcionamiento" con diagramas (vista general, revisión, clasificación, envío con foto y encuesta, estados en `Historico`), calendario y responsables. Se actualizan la clave sin número, el uso del PDF y los métodos de GREEN-API.
+
 ## [1.9.2] - 2026-10-20
 
 ### Corregido
