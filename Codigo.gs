@@ -23,8 +23,8 @@ var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje a
 // WhatsApp exige al menos 2 opciones. No se envia con el mensaje agrupado (> MAX_MENSAJES).
 var ENCUESTA_ACTIVA = true;
 var OPCIONES_ENCUESTA = [
-  [0x2705, "Recibida y socializada en mi servicio"],
-  [0x23F3, "Recibida, pendiente por socializar"]
+  [0x2705, "S\u00ed"],
+  [0x274C, "No"]
 ];
 
 // Foto del producto (extraida del PDF) con el texto de la alerta al pie. Solo MED: en el
@@ -162,7 +162,7 @@ function vistaPrevia() {
     Logger.log("[%s] HTTP %s, %s items en la pagina 0", f.fuente, r.codigo, items.length);
     items.forEach(function(it) {
       clasificar_(it, reglas);
-      var estado = claves[it.clave] ? "ya registrada en Historico" : "NUEVA";
+      var estado = yaRegistrada_(claves, it) ? "ya registrada en Historico" : "NUEVA";
       Logger.log("[VISTA PREVIA - %s - %s]\n%s", it.clave, estado, formatearMensaje_(it));
     });
   });
@@ -254,7 +254,7 @@ function ejecutar_(modo) {
         reg.leidos += items.length;
         var nuevosPagina = 0;
         items.forEach(function(it) {
-          if (claves[it.clave]) return;
+          if (yaRegistrada_(claves, it)) return;
           claves[it.clave] = true;
           clasificar_(it, reglas);
           it.fechaDeteccion = new Date();
@@ -433,7 +433,9 @@ function parsearListado_(html, fuente) {
     var tipoCodigo = esInforme ? "IS" : "AS";
 
     items.push({
-      clave: num ? fuente + ":" + tipoCodigo + ":" + num.numero + "-" + num.anio : fuente + ":" + url,
+      clave: num ? fuente + ":" + tipoCodigo + ":" + num.numero + "-" + num.anio : claveSinNumero_(fuente, tipoCodigo, titulo, url),
+      // Clave que usaban las versiones anteriores para alertas sin numero; evita reprocesarlas.
+      claveAnterior: num ? "" : fuente + ":" + url,
       fuente: fuente,
       tipoCodigo: tipoCodigo,
       numero: num ? num.numero : "",
@@ -447,6 +449,13 @@ function parsearListado_(html, fuente) {
     });
   }
   return items;
+}
+
+// Sin numero de alerta: si el enlace es un PDF propio, la clave es su URL; si no (INVIMA a veces
+// enlaza ckfinder.html, igual para varias alertas), el titulo normalizado, para no confundirlas.
+function claveSinNumero_(fuente, tipoCodigo, titulo, url) {
+  if (/\.pdf$/i.test(url)) return fuente + ":" + url;
+  return fuente + ":" + tipoCodigo + ":T:" + normalizar_(titulo).substring(0, 150);
 }
 
 function campo_(bloque, clase) {
@@ -930,10 +939,17 @@ function clavesHistorico_(ss) {
   var claves = {};
   var ultima = hoja.getLastRow();
   if (ultima < 2) return claves;
-  hoja.getRange(2, 1, ultima - 1, 1).getValues().forEach(function(f) {
-    if (f[0]) claves[String(f[0])] = true;
+  // Valor: titulo normalizado (para reconocer alertas guardadas con la clave anterior).
+  hoja.getRange(2, 1, ultima - 1, 5).getValues().forEach(function(f) {
+    if (f[0]) claves[String(f[0])] = normalizar_(f[4]) || true;
   });
   return claves;
+}
+
+// La alerta ya esta en el Historico, con su clave actual o con la clave anterior y el mismo titulo.
+function yaRegistrada_(claves, it) {
+  if (claves[it.clave]) return true;
+  return !!it.claveAnterior && claves[it.claveAnterior] === normalizar_(it.titulo);
 }
 
 function persistirItems_(hoja, items, enviado) {
