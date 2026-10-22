@@ -1019,6 +1019,50 @@ function probarAcceso() {
   });
 }
 
+// Diagnostico del sitio nuevo de INVIMA (22/10/2026: las rutas de MED, DM e indice devuelven la
+// misma pagina, sin el listado anterior). Registra lo necesario para ubicar el listado nuevo:
+// enlaces relevantes, scripts, URLs de API/JSON en el HTML, marcadores de plataforma y un fragmento
+// alrededor de la primera mencion de alertas. Solo lectura; no envia nada.
+function inspeccionarSitioInvima() {
+  var url = FUENTES_DEFECTO[0].url + "?page=0";
+  var r = descargar_(url);
+  var html = r.html || "";
+  Logger.log("[INSPECCION] %s -> HTTP %s, %s caracteres", url, r.codigo, html.length);
+  inspeccionHtml_(html).forEach(function(linea) { Logger.log(linea); });
+}
+
+function inspeccionHtml_(html) {
+  var lineas = [];
+  var unicos = function(arr, max) {
+    var vistos = {};
+    return arr.filter(function(x) { if (vistos[x]) return false; vistos[x] = true; return true; }).slice(0, max);
+  };
+  var hrefs = [];
+  var re = /href=["']([^"']+)["']/gi, m;
+  while ((m = re.exec(html)) !== null) hrefs.push(m[1]);
+  var relevantes = unicos(hrefs.filter(function(h) {
+    return /alert|pdf|informe|medicament|dispositiv|ckfinder|seguridad|api|json/i.test(h);
+  }), 60);
+  lineas.push("ENLACES relevantes (" + relevantes.length + "): " + relevantes.join(" | "));
+  var scripts = [];
+  re = /<script[^>]+src=["']([^"']+)["']/gi;
+  while ((m = re.exec(html)) !== null) scripts.push(m[1]);
+  lineas.push("SCRIPTS (" + scripts.length + "): " + unicos(scripts, 40).join(" | "));
+  var urls = html.match(/https?:\/\/[^"'\s<>)\\]+/g) || [];
+  var api = unicos(urls.filter(function(u) { return /api|json|graphql|alert|wp-json|search|feed/i.test(u); }), 40);
+  lineas.push("URLS API/JSON (" + api.length + "): " + api.join(" | "));
+  var marcas = ["views-row", "alertas-invima-list", "ckfinder", "__NEXT_DATA__", "__NUXT__", "wp-json", "wp-content",
+    "shopify", "drupal", "data-reactroot", "ng-version", "liferay", "sharepoint", "Alerta sanitaria", "Informe de seguridad"];
+  lineas.push("MARCADORES: " + marcas.map(function(k) {
+    return k + "=" + (html.split(k).length - 1);
+  }).join(", "));
+  var cuerpo = html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ");
+  var i = cuerpo.search(/Alerta sanitaria(?! e informes)|Informe de seguridad No|No_?\s*#?\d+-20\d\d/i);
+  lineas.push(i < 0 ? "FRAGMENTO: no hay menciones de alertas fuera de scripts y estilos"
+    : "FRAGMENTO: " + cuerpo.substring(Math.max(0, i - 1500), i + 1500).replace(/\s+/g, " "));
+  return lineas;
+}
+
 // Registra el HTML que rodea los dos primeros enlaces PDF (alertas o informes)
 // de cada fuente, para conocer el marcado real de cada item (titulo, tipo, fecha, "Ver").
 function volcarMuestraHtml() {

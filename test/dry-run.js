@@ -716,6 +716,20 @@ prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => 
   assert.strictEqual(enviados.length, 2, "solo el aviso tecnico, no las alertas");
 });
 
+prueba("inspeccionHtml_ resume enlaces, scripts, APIs, marcadores y fragmento del sitio nuevo", () => {
+  const { g } = crearEntorno();
+  const html = '<html><head><title>Alertas sanitarias e informes de seguridad | Invima</title>' +
+    '<script src="/assets/app.123.js"></script><script>fetch("https://api.invima.gov.co/v1/alertas?tipo=med")</script></head>' +
+    '<body><a href="/alertas/medicamentos">MED</a><a href="/contacto">X</a>' +
+    '<div class="card">Alerta sanitaria No. 340-2026 PRODUCTO X <a href="/docs/Alerta%20No_340-2026.pdf">Ver</a></div></body></html>';
+  const l = g.inspeccionHtml_(html);
+  assert.ok(l[0].includes("/alertas/medicamentos") && l[0].includes("Alerta%20No_340-2026.pdf") && !l[0].includes("/contacto"), l[0]);
+  assert.ok(l[1].includes("/assets/app.123.js"), l[1]);
+  assert.ok(l[2].includes("https://api.invima.gov.co/v1/alertas?tipo=med"), l[2]);
+  assert.ok(l[3].includes("views-row=0") && l[3].includes("Alerta sanitaria=1"), l[3]);
+  assert.ok(l[4].includes("PRODUCTO X"), l[4]);
+});
+
 prueba("listado ilegible -> un aviso tecnico por dia", () => {
   const { g, hojas, enviados, estado } = entornoListo();
   estado.html.MED = "<html>mantenimiento</html>";

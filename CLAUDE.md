@@ -19,6 +19,8 @@ Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecal
 
 ## Estructura del sitio INVIMA (verificada 2026-10-20)
 
+> **22/10/2026: INVIMA cambió el sitio.** Las rutas de abajo devuelven una misma página nueva sin el listado. Diagnóstico en curso con `inspeccionarSitioInvima()`; actualizar esta sección cuando se adapte `parsearListado_`.
+
 - MED: `/alertas/medicamentos-productos-biologicos`. DM: `/alertas/dispositivos-medicos-invima` (la ruta `dispositivos-medicos-otras-tecnologias` da 404).
 - Ítem: `<div class="views-row ... alertas-invima-list">` con `views-field-title`, `views-field-field-tipo-de-documento`, `views-field-field-a-o` (fecha NO confiable), en DM además `views-field-field-numero-de-id-d-m` y `views-field-field-estado`, y `views-field-field-comunicado-invima` con el enlace "Ver" (URL absoluta, codificada con `%20`).
 - DM publica informes de seguridad en `ckfinder/userfiles/files/INFORMES DE SEGURIDAD/...`, con numeración propia → la clave incluye el tipo (`AS`/`IS`).

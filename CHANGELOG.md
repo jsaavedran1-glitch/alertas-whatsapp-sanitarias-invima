@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.9.5] - 2026-10-22
+
+### Agregado
+- `probarAcceso()` confirmó el cambio de sitio de INVIMA: MED, DM y el índice `/alertas` devuelven la misma página (133.247 caracteres, título "Alertas sanitarias e informes de seguridad | Invima", menú nuevo) sin el listado Drupal. `inspeccionarSitioInvima()` registra enlaces, scripts, URLs de API/JSON, marcadores de plataforma y un fragmento alrededor de la primera alerta, para adaptar `parsearListado_`.
+
 ## [1.9.4] - 2026-10-22
 
 ### Agregado
