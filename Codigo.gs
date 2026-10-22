@@ -245,7 +245,8 @@ function ejecutar_(modo) {
         if (items.length === 0) {
           if (p === 0) {
             reg.estado = "ERROR";
-            reg.error = "No se pudo leer el listado: HTTP " + r.codigo + ", 0 items" + (r.error ? " (" + r.error + ")" : "");
+            reg.error = "No se pudo leer el listado: HTTP " + r.codigo + ", 0 items" + (r.error ? " (" + r.error + ")" : "") +
+              (r.html ? " | " + describirPagina_(r.html) : "");
             fallidas.push(f.fuente + " (HTTP " + r.codigo + ")");
             Logger.log("[%s] %s", f.fuente, reg.error);
           }
@@ -404,6 +405,16 @@ function descargar_(url) {
   } catch (err) {
     return { codigo: 0, html: "", error: String(err) };
   }
+}
+
+// Resumen de una pagina que no trajo alertas, para saber que devolvio INVIMA (mantenimiento,
+// bloqueo, cambio de marcado): longitud, <title> y el inicio del texto visible.
+function describirPagina_(html) {
+  var h = String(html || "");
+  var titulo = limpiarTexto_((h.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [0, ""])[1]);
+  var cuerpo = h.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ");
+  var texto = limpiarTexto_(cuerpo).substring(0, 200);
+  return h.length + " caracteres; titulo: " + (titulo || "(sin titulo)") + "; texto: " + (texto || "(vacio)");
 }
 
 function urlPagina_(base, pagina) {
@@ -1000,6 +1011,7 @@ function probarAcceso() {
       Logger.log("   HTTP=%s | longitud HTML=%s | enlaces PDF ALERTAS=%s | %s ms",
         resp.getResponseCode(), html.length, pdfs.length, Date.now() - inicio);
       if (pdfs.length > 0) Logger.log("   Primer PDF: %s", pdfs[0]);
+      else Logger.log("   Pagina sin alertas: %s", describirPagina_(html));
       registrarEnlacesAlertas_(html);
     } catch (err) {
       Logger.log("[%s] %s -> EXCEPCION: %s", obj.fuente, obj.url, err);

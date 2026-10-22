@@ -726,6 +726,18 @@ prueba("listado ilegible -> un aviso tecnico por dia", () => {
   assert.ok(hojas.Log.filas().some((f) => f.fuente === "MED" && f.estado === "ERROR"));
 });
 
+prueba("HTTP 200 sin alertas: el Log guarda titulo y texto de la pagina recibida", () => {
+  const { g, hojas, estado } = entornoListo();
+  estado.html.MED = "<html><head><title>Sitio en mantenimiento | INVIMA</title><style>.x{}</style></head>" +
+    "<body><script>var a=1;</script><h1>Estamos realizando labores de mantenimiento</h1></body></html>";
+  g.revisarAlertas();
+  const fila = hojas.Log.filas().find((f) => f.fuente === "MED" && f.estado === "ERROR");
+  assert.ok(fila.error.includes("HTTP 200, 0 items"), fila.error);
+  assert.ok(fila.error.includes("titulo: Sitio en mantenimiento | INVIMA"), fila.error);
+  assert.ok(fila.error.includes("texto: Sitio en mantenimiento | INVIMA Estamos realizando labores de mantenimiento"), fila.error);
+  assert.ok(!fila.error.includes("var a=1"), "sin scripts");
+});
+
 prueba("solo se envia a un grupo y el token no aparece en registros", () => {
   const e = entornoListo({ props: { GA_CHAT_ID: "573001234567@c.us" } });
   e.estado.html.MED = ENVOLTURA([filaMed("Alerta sanitaria sobre: RETIRO C", "Alerta%20No_600-2026.pdf")]);

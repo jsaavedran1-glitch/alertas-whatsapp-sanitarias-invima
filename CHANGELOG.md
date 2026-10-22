@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [1.9.4] - 2026-10-22
+
+### Agregado
+- 22/10/2026, 2:15 p. m.: MED y DM respondieron HTTP 200 sin ninguna alerta y salió el aviso técnico. Cuando un listado no trae alertas, el `Log` (columna error) guarda ahora la longitud, el `<title>` y el inicio del texto de la página recibida, para distinguir mantenimiento, bloqueo o cambio de marcado. `probarAcceso()` muestra lo mismo.
+
 ## [1.9.3] - 2026-10-21
 
 ### Documentación
