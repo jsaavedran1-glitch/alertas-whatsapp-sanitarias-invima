@@ -358,7 +358,7 @@ function avisoTecnico_(fallidas, enviarReal) {
     return;
   }
   var mensaje = "[INVIMA] " + emoji_(0x26A0) + String.fromCodePoint(0xFE0F) + " No se pudo leer el listado" +
-    "\nFuente: " + fallidas.join(", ") + "\n_Se revisará de nuevo en la próxima ejecución._";
+    "\nFuente: " + fallidas.join(", ") + "\n_Se revisará de nuevo en la próxima ejecución._\n\n" + firma_();
   var r = enviarWhatsApp_(mensaje, enviarReal);
   if (enviarReal && r.ok) props.setProperty("ULTIMO_AVISO_TECNICO", hoy);
 }
@@ -383,7 +383,7 @@ function resumenSemanal_(enviarReal) {
   var lineas = ["[INVIMA] " + emoji_(E.RESUMEN) + " *Resumen semanal*",
     "_" + Utilities.formatDate(desde, TZ, "dd/MM/yyyy") + " - " + Utilities.formatDate(hasta, TZ, "dd/MM/yyyy") + "_", ""];
   var fuentesResumen = Object.keys(conteo).sort();
-  if (fuentesResumen.length === 0) lineas.push("Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana.");
+  if (fuentesResumen.length === 0) lineas = lineas.concat(lineasSinNovedades_());
   fuentesResumen.forEach(function(fu) {
     var c = conteo[fu];
     lineas.push(etiquetaFuente_(fu) + ": " + emojiNivel_("ALTA") + " " + c.ALTA + " · " + emojiNivel_("MEDIA") + " " + c.MEDIA +
@@ -794,7 +794,19 @@ function lineaFecha_(it) {
 }
 
 function firma_() {
-  return "_Bot Alertas INVIMA · Servicio Farmacéutico HDV_";
+  return "_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_\n" +
+    "_Desarrollado por el QF Juan Pablo Saavedra_";
+}
+
+// Resumen semanal sin novedades.
+function lineasSinNovedades_() {
+  return [
+    emoji_(0x2705) + " *Sin novedades en el periodo*",
+    "El monitoreo automatizado de los listados del INVIMA (medicamentos y productos biológicos; dispositivos " +
+      "médicos y otras tecnologías) no identificó alertas sanitarias ni informes de seguridad nuevos.",
+    "Sin requerimientos de verificación de inventario ni de socialización en los servicios del HDV derivados de este periodo.",
+    "_Vigilancia activa: revisiones diarias a las " + HORAS_REVISION.map(function(h) { return h + ":00"; }).join(", ") + "._"
+  ];
 }
 
 function formatearMensaje_(it) {

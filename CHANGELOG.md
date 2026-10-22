@@ -2,6 +2,12 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.2.0] - 2026-10-22
+
+### Cambiado
+- Firma de todos los mensajes (alertas, resumen semanal, mensaje agrupado y aviso técnico): "_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_" / "_Desarrollado por el QF Juan Pablo Saavedra_".
+- Resumen semanal sin novedades con redacción técnica: "✅ *Sin novedades en el periodo*", alcance del monitoreo (medicamentos y productos biológicos; dispositivos médicos y otras tecnologías), ausencia de requerimientos de verificación o socialización y horas de vigilancia activa.
+
 ## [2.1.1] - 2026-10-22
 
 ### Cambiado

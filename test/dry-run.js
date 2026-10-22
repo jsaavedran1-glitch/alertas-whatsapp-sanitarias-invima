@@ -477,7 +477,7 @@ prueba("formato del mensaje inmediato", () => {
   assert.strictEqual(lineas[7], "\u{1F3E5} *Coincidencia HDV:*");
   assert.strictEqual(lineas[8], "• GENTAMICINA: Cemento óseo con gentamicina (DM-0457)");
   assert.ok(lineas.some((l) => l.startsWith("\u{1F4C4} PDF: https://app.invima.gov.co/alertas/ckfinder/")));
-  assert.strictEqual(lineas[lineas.length - 1], "_Bot Alertas INVIMA · Servicio Farmacéutico HDV_");
+  assert.strictEqual(lineas.slice(-2).join("\n"), "_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_\n_Desarrollado por el QF Juan Pablo Saavedra_");
 });
 
 prueba("fecha del listado no confiable -> se muestra la fecha de deteccion", () => {
@@ -548,7 +548,18 @@ prueba("encuesta solo despues de ALTA y MEDIA, no de BAJA", () => {
 
 prueba("resumen semanal sin novedades nombra alertas sanitarias e informes de seguridad", () => {
   const { g } = entornoListo();
-  assert.ok(g.resumenSemanal().includes("Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana."));
+  const r = g.resumenSemanal();
+  assert.ok(r.includes("\u2705 *Sin novedades en el periodo*"));
+  assert.ok(r.includes("no identificó alertas sanitarias ni informes de seguridad nuevos"));
+  assert.ok(r.includes("_Vigilancia activa: revisiones diarias a las 6:00, 10:00, 14:00, 18:00._"));
+  assert.ok(r.endsWith("_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_\n_Desarrollado por el QF Juan Pablo Saavedra_"));
+});
+
+prueba("aviso tecnico lleva la firma del ecosistema", () => {
+  const { g, enviados, estado } = entornoListo();
+  estado.html.MED = "<html>mantenimiento</html>";
+  g.revisarAlertas();
+  assert.ok(enviados[0].cuerpo.message.endsWith("_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_\n_Desarrollado por el QF Juan Pablo Saavedra_"));
 });
 
 prueba("ENVIAR_BAJA = false: BAJA queda para el resumen del lunes (comportamiento anterior)", () => {

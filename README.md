@@ -137,7 +137,8 @@ Mensaje que llega al grupo:
 📄 PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
 ❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
 
-_Bot Alertas INVIMA · Servicio Farmacéutico HDV_
+_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_
+_Desarrollado por el QF Juan Pablo Saavedra_
 
 🔴 Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?
 ( ) ✅ Sí
@@ -167,7 +168,7 @@ Ninguna clave se reenvía: la alerta queda registrada **antes** de enviarse, as�
 | Cuándo | Qué hace | ¿Escribe al grupo? |
 |---|---|---|
 | Diario 6, 10, 14 y 18 h | `revisarAlertas()`: revisa MED y DM | Solo si INVIMA publicó alertas desde la revisión anterior (🔴, 🟠 o ⚪), o el aviso técnico si INVIMA no responde (máx. 1 por día) |
-| Lunes 7 h | `resumenSemanal()`: conteo de la semana por fuente y nivel | Siempre (si no hubo alertas: "Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana.") |
+| Lunes 7 h | `resumenSemanal()`: conteo de la semana por fuente y nivel | Siempre (sin novedades: "✅ *Sin novedades en el periodo*", con el detalle del monitoreo y las horas de revisión) |
 | Día 1 de cada mes | GREEN-API reinicia el cupo de chats del plan Developer | — |
 
 ### 7. Responsables
@@ -288,7 +289,8 @@ Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (genera
 📄 PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
 ❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
 
-_Bot Alertas INVIMA · Servicio Farmacéutico HDV_
+_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_
+_Desarrollado por el QF Juan Pablo Saavedra_
 ```
 
 - Medicamentos: `💊 Medicamento`; dispositivos: `🩺 Dispositivo médico`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
