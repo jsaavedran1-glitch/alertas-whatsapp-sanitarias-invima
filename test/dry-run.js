@@ -281,7 +281,7 @@ prueba("sitio nuevo (Odoo): tarjetas de medicamentos con numero, fecha, clasific
   assert.strictEqual(it[2].url, "https://www.invima.gov.co/alertas-sanitarias/12938/pdf");
   assert.strictEqual(it[2].urlDetalle, "https://www.invima.gov.co/alertas-sanitarias/dialux");
   // Sin numero ni PDF: clave por titulo, la fecha 20-10-2026 no se toma como numero "10-2026".
-  assert.strictEqual(it[0].clave, "MED:AS:T:ALERTA SANITARIA SOBRE SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO");
+  assert.strictEqual(it[0].clave, "MED:AS:T:ALERTA SANITARIA SOBRE SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO:2026-10-20");
   assert.strictEqual(it[0].url, "https://www.invima.gov.co/alertas-sanitarias/alerta-sanitaria-sobre-suplementos-dietarios-sin-registro-sanitario");
 });
 
@@ -312,19 +312,28 @@ prueba("cambio de sitio: lo ya registrado no se repite (con numero y sin numero)
   hojas.Config_Fuentes.getRange(2, 2, 2, 1).setValues([["https://app.invima.gov.co/alertas/medicamentos-productos-biologicos"],
     ["https://app.invima.gov.co/alertas/dispositivos-medicos-invima"]]);
   const roto = "https://app.invima.gov.co/alertas/sites/all/modules/ckeditor/ckfinder/ckfinder.html";
+  hojas.Historico.getRange(5, 1, 1, 12).setValues([["MED:AS:308-2026", "MED", "308", "2026",
+    "Alerta sanitaria sobre: Productos fraudulentos promocionados como medicamentos a través de comercio electrónico - Parte 6",
+    "Alerta sanitaria", "2026-09-18", "", "", "BAJA", "", "RESUMEN_SEMANAL"]]);
   hojas.Historico.getRange(2, 1, 3, 12).setValues([
-    ["MED:" + roto, "MED", "", "", "Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO", "Alerta sanitaria", "", roto, "", "BAJA", "", "RESUMEN_SEMANAL"],
+    ["MED:" + roto, "MED", "", "", "Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO", "Alerta sanitaria", "2026-10-20", roto, "", "BAJA", "", "RESUMEN_SEMANAL"],
     ["MED:AS:358-2026", "MED", "358", "2026", "PUMPKIN", "Alerta sanitaria", "", "", "", "BAJA", "", "RESUMEN_SEMANAL"],
     ["DM:IS:149-2026", "DM", "149", "2026", "Cementos", "Informe de seguridad", "", "", "", "ALTA", "", "SI"]
   ]);
   estado.paginas = {
     MED: [PAGINA_NUEVA(TARJETAS_MED.concat([tarjeta({ numero: "359–2026", titulo: "RETIRO DE LOTE BUTILBROMURO DE HIOSCINA",
-      slug: "retiro", fecha: "21-10-2026", clase: "Retiro de producto", pdfId: "12950" })]))],
+      slug: "retiro", fecha: "21-10-2026", clase: "Retiro de producto", pdfId: "12950" }),
+      tarjeta({ titulo: "Alerta Sanitaria sobre: Productos fraudulentos promocionados como medicamentos a través de comercio electrónico - Parte 6",
+        slug: "parte-6", fecha: "18-09-2026", clase: "Alerta sanitaria especial", pdfId: "12632" }),
+      tarjeta({ titulo: "Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO",
+        slug: "suplementos-2", fecha: "05-11-2026", clase: "Alerta sanitaria especial" })]))],
     DM: [PAGINA_NUEVA(TARJETAS_DM)]
   };
   const r = g.revisarAlertas();
   assert.strictEqual(JSON.stringify(r.nuevos.map((x) => x.clave).sort()),
-    JSON.stringify(["DM:AS:355-2026", "MED:AS:357-2026", "MED:AS:359-2026"]));
+    JSON.stringify(["DM:AS:355-2026", "MED:AS:357-2026", "MED:AS:359-2026",
+      "MED:AS:T:ALERTA SANITARIA SOBRE SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO:2026-11-05"]),
+    "Parte 6 (antes 308-2026) y Suplementos del 20/10 ya estaban; Suplementos del 05/11 es otra alerta");
   const alerta = enviados.find((e) => String(e.cuerpo.message || "").includes("359-2026"));
   assert.ok(alerta.cuerpo.message.includes("\u{1F4C4} PDF: https://www.invima.gov.co/alertas-sanitarias/12950/pdf"));
   assert.ok(hojas.Log.filas().every((f) => f.estado === "OK"), "sin aviso tecnico");
@@ -766,6 +775,9 @@ prueba("diagnosticarImagenesPdf recorre Historico por lotes y continua donde que
   const pdfFoto = ascii("%PDF-1.4\n<< /Subtype /Image /Width 600 /Height 500 /Filter /DCTDecode >>\nstream\n")
     .concat(jpeg, ascii("\nendstream\n<< /Subtype /Image /Width 90 /Height 40 /Filter /FlateDecode >>\nstream\nxx\nendstream"));
   estado.pdfs = { "https://x/a.pdf": pdfFoto, "https://x/b.pdf": ascii("%PDF-1.4\n") };
+  hojas.Historico.getRange(5, 1, 1, 12).setValues([["MED:AS:308-2026", "MED", "308", "2026",
+    "Alerta sanitaria sobre: Productos fraudulentos promocionados como medicamentos a través de comercio electrónico - Parte 6",
+    "Alerta sanitaria", "2026-09-18", "", "", "BAJA", "", "RESUMEN_SEMANAL"]]);
   hojas.Historico.getRange(2, 1, 3, 12).setValues([
     ["MED:AS:1-2026", "MED", "1", "2026", "Alerta sanitaria sobre: A", "Alerta sanitaria", "", "https://x/a.pdf", "", "ALTA", "", "SI"],
     ["DM:AS:2-2026", "DM", "2", "2026", "Alerta sanitaria sobre: B", "Alerta sanitaria", "", "https://x/b.pdf", "", "BAJA", "", "SI"],

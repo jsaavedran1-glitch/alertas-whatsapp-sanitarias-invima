@@ -526,7 +526,7 @@ function parsearTarjetas_(html, fuente) {
     var url = pdf ? urlAbsoluta_(pdf) : detalle;
 
     items.push({
-      clave: num ? fuente + ":" + tipoCodigo + ":" + num.numero + "-" + num.anio : claveSinNumero_(fuente, tipoCodigo, titulo, ""),
+      clave: num ? fuente + ":" + tipoCodigo + ":" + num.numero + "-" + num.anio : claveSinNumero_(fuente, tipoCodigo, titulo, "") + (fecha ? ":" + fecha : ""),
       claveAnterior: "",
       fuente: fuente,
       tipoCodigo: tipoCodigo,
@@ -1050,19 +1050,25 @@ function clavesHistorico_(ss) {
   var ultima = hoja.getLastRow();
   if (ultima < 2) return claves;
   // Valor: titulo normalizado (para reconocer alertas guardadas con la clave anterior).
-  // Las alertas sin numero tambien se indexan por fuente + titulo: su clave cambio con el sitio nuevo.
-  hoja.getRange(2, 1, ultima - 1, 5).getValues().forEach(function(f) {
+  // Indice adicional por fuente + titulo + fecha de publicacion: en el sitio nuevo algunas alertas
+  // (p. ej. "Alerta sanitaria especial") no traen numero, aunque el sitio anterior lo daba en el PDF.
+  hoja.getRange(2, 1, ultima - 1, 7).getValues().forEach(function(f) {
     if (!f[0]) return;
     claves[String(f[0])] = normalizar_(f[4]) || true;
-    if (!String(f[2])) claves["#T#" + f[1] + "|" + normalizar_(f[4])] = true;
+    claves[claveTitulo_(f[1], f[4], f[6])] = true;
   });
   return claves;
 }
 
 // La alerta ya esta en el Historico, con su clave actual o con la clave anterior y el mismo titulo.
+function claveTitulo_(fuente, titulo, fecha) {
+  var f = fecha instanceof Date ? Utilities.formatDate(fecha, TZ, "yyyy-MM-dd") : String(fecha || "");
+  return "#T#" + fuente + "|" + normalizar_(tituloCorto_(String(titulo || ""))) + "|" + f;
+}
+
 function yaRegistrada_(claves, it) {
   if (claves[it.clave]) return true;
-  if (!it.numero && claves["#T#" + it.fuente + "|" + normalizar_(it.titulo)]) return true;
+  if (!it.numero && claves[claveTitulo_(it.fuente, it.titulo, it.fecha)]) return true;
   return !!it.claveAnterior && claves[it.claveAnterior] === normalizar_(it.titulo);
 }
 

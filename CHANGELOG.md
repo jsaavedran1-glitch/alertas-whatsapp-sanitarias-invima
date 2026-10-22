@@ -9,6 +9,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 - Las URL viejas de `Config_Fuentes` se traducen solas (`migrarUrlFuente_`). Las claves con número no cambian; las alertas sin número ya registradas se reconocen por fuente y título, así que nada se reenvía.
 - El mensaje muestra la clasificación junto a la fecha (`📅 Publicada: 2026-10-16 · Producto fraudulento`) y el estado sin ID cuando no lo hay (`🆔 Estado: En seguimiento`).
 - La foto del producto se busca también en los PDF `/pdf` del sitio nuevo.
+- `vistaPrevia()` con el sitio real: 22 de 24 tarjetas reconocidas; las "Alerta sanitaria especial" Parte 5 y Parte 6 salían como nuevas porque el sitio nuevo no les muestra número (antes 307 y 308-2026, tomados del PDF). Las alertas sin número se reconocen ahora por fuente + título + fecha de publicación contra todo el `Historico`, y su clave incluye la fecha (`MED:AS:T:<título>:2026-10-20`) para no confundir alertas distintas con el mismo título.
 
 ## [1.9.5] - 2026-10-22
 
