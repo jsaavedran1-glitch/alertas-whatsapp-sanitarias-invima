@@ -5,7 +5,7 @@ Todas las fechas en hora de Colombia (America/Bogota).
 ## [2.2.1] - 2026-10-22
 
 ### Cambiado
-- Encabezado del resumen: "📊 *Resumen semanal de alertas e informes de seguridad INVIMA*". Sin novedades: "✅ *Sin alertas sanitarias ni informes de seguridad nuevos reportados por el INVIMA*".
+- Encabezado del resumen: "📊 *Resumen semanal de alertas e informes de seguridad INVIMA*". Sin novedades: "✅ *Sin alertas sanitarias ni informes de seguridad nuevos reportados por el INVIMA*" y "Listados monitoreados: medicamentos y productos biológicos; dispositivos médicos y otras tecnologías."
 
 ## [2.2.0] - 2026-10-22
 

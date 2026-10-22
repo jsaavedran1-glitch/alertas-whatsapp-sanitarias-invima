@@ -802,8 +802,7 @@ function firma_() {
 function lineasSinNovedades_() {
   return [
     emoji_(0x2705) + " *Sin alertas sanitarias ni informes de seguridad nuevos reportados por el INVIMA*",
-    "El monitoreo automatizado de los listados del INVIMA (medicamentos y productos biológicos; dispositivos " +
-      "médicos y otras tecnologías) no identificó alertas sanitarias ni informes de seguridad nuevos.",
+    "Listados monitoreados: medicamentos y productos biológicos; dispositivos médicos y otras tecnologías.",
     "_Vigilancia activa: revisiones diarias a las " + HORAS_REVISION.map(function(h) { return h + ":00"; }).join(", ") + "._"
   ];
 }
