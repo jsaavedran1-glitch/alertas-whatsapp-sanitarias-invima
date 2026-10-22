@@ -549,7 +549,8 @@ prueba("encuesta solo despues de ALTA y MEDIA, no de BAJA", () => {
 prueba("resumen semanal sin novedades nombra alertas sanitarias e informes de seguridad", () => {
   const { g } = entornoListo();
   const r = g.resumenSemanal();
-  assert.ok(r.includes("\u2705 *Sin novedades en el periodo*"));
+  assert.ok(r.startsWith("[INVIMA] \u{1F4CA} *Resumen semanal de alertas e informes de seguridad INVIMA*\n"));
+  assert.ok(r.includes("\u2705 *Sin alertas sanitarias ni informes de seguridad nuevos reportados por el INVIMA*"));
   assert.ok(r.includes("no identificó alertas sanitarias ni informes de seguridad nuevos"));
   assert.ok(!r.includes("Sin requerimientos de verificación"));
   assert.ok(r.includes("_Vigilancia activa: revisiones diarias a las 6:00, 10:00, 14:00, 18:00._"));

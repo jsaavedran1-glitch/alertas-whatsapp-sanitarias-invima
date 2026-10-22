@@ -380,7 +380,7 @@ function resumenSemanal_(enviarReal) {
     if (f.nivel === "BAJA" && f.enviado === ENVIADO.SEMANAL) bajas.push(f);
   });
 
-  var lineas = ["[INVIMA] " + emoji_(E.RESUMEN) + " *Resumen semanal*",
+  var lineas = ["[INVIMA] " + emoji_(E.RESUMEN) + " *Resumen semanal de alertas e informes de seguridad INVIMA*",
     "_" + Utilities.formatDate(desde, TZ, "dd/MM/yyyy") + " - " + Utilities.formatDate(hasta, TZ, "dd/MM/yyyy") + "_", ""];
   var fuentesResumen = Object.keys(conteo).sort();
   if (fuentesResumen.length === 0) lineas = lineas.concat(lineasSinNovedades_());
@@ -801,7 +801,7 @@ function firma_() {
 // Resumen semanal sin novedades.
 function lineasSinNovedades_() {
   return [
-    emoji_(0x2705) + " *Sin novedades en el periodo*",
+    emoji_(0x2705) + " *Sin alertas sanitarias ni informes de seguridad nuevos reportados por el INVIMA*",
     "El monitoreo automatizado de los listados del INVIMA (medicamentos y productos biológicos; dispositivos " +
       "médicos y otras tecnologías) no identificó alertas sanitarias ni informes de seguridad nuevos.",
     "_Vigilancia activa: revisiones diarias a las " + HORAS_REVISION.map(function(h) { return h + ":00"; }).join(", ") + "._"
