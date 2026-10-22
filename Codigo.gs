@@ -383,7 +383,7 @@ function resumenSemanal_(enviarReal) {
   var lineas = ["[INVIMA] " + emoji_(E.RESUMEN) + " *Resumen semanal*",
     "_" + Utilities.formatDate(desde, TZ, "dd/MM/yyyy") + " - " + Utilities.formatDate(hasta, TZ, "dd/MM/yyyy") + "_", ""];
   var fuentesResumen = Object.keys(conteo).sort();
-  if (fuentesResumen.length === 0) lineas.push("Sin alertas nuevas detectadas en la semana.");
+  if (fuentesResumen.length === 0) lineas.push("Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana.");
   fuentesResumen.forEach(function(fu) {
     var c = conteo[fu];
     lineas.push(etiquetaFuente_(fu) + ": " + emojiNivel_("ALTA") + " " + c.ALTA + " · " + emojiNivel_("MEDIA") + " " + c.MEDIA +

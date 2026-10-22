@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.1.1] - 2026-10-22
+
+### Cambiado
+- Resumen semanal sin novedades: "Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana." (incluye los informes de seguridad, no solo las alertas).
+
 ## [2.1.0] - 2026-10-22
 
 ### Cambiado

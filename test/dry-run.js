@@ -546,6 +546,11 @@ prueba("encuesta solo despues de ALTA y MEDIA, no de BAJA", () => {
   assert.strictEqual(JSON.stringify(enviados.map((e) => e.url.split("/")[4])), JSON.stringify(["sendMessage", "sendPoll", "sendMessage"]));
 });
 
+prueba("resumen semanal sin novedades nombra alertas sanitarias e informes de seguridad", () => {
+  const { g } = entornoListo();
+  assert.ok(g.resumenSemanal().includes("Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana."));
+});
+
 prueba("ENVIAR_BAJA = false: BAJA queda para el resumen del lunes (comportamiento anterior)", () => {
   const { g, hojas, enviados, estado } = entornoListo();
   g.cargaInicial();

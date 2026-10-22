@@ -167,7 +167,7 @@ Ninguna clave se reenvía: la alerta queda registrada **antes** de enviarse, as�
 | Cuándo | Qué hace | ¿Escribe al grupo? |
 |---|---|---|
 | Diario 6, 10, 14 y 18 h | `revisarAlertas()`: revisa MED y DM | Solo si INVIMA publicó alertas desde la revisión anterior (🔴, 🟠 o ⚪), o el aviso técnico si INVIMA no responde (máx. 1 por día) |
-| Lunes 7 h | `resumenSemanal()`: conteo de la semana por fuente y nivel | Siempre (si no hubo alertas: "Sin alertas nuevas detectadas en la semana.") |
+| Lunes 7 h | `resumenSemanal()`: conteo de la semana por fuente y nivel | Siempre (si no hubo alertas: "Sin alertas sanitarias ni informes de seguridad nuevos detectados en la semana.") |
 | Día 1 de cada mes | GREEN-API reinicia el cupo de chats del plan Developer | — |
 
 ### 7. Responsables
