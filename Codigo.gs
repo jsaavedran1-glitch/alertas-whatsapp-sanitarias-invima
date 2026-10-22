@@ -804,7 +804,6 @@ function lineasSinNovedades_() {
     emoji_(0x2705) + " *Sin novedades en el periodo*",
     "El monitoreo automatizado de los listados del INVIMA (medicamentos y productos biológicos; dispositivos " +
       "médicos y otras tecnologías) no identificó alertas sanitarias ni informes de seguridad nuevos.",
-    "Sin requerimientos de verificación de inventario ni de socialización en los servicios del HDV derivados de este periodo.",
     "_Vigilancia activa: revisiones diarias a las " + HORAS_REVISION.map(function(h) { return h + ":00"; }).join(", ") + "._"
   ];
 }

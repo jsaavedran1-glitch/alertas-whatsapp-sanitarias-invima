@@ -551,6 +551,7 @@ prueba("resumen semanal sin novedades nombra alertas sanitarias e informes de se
   const r = g.resumenSemanal();
   assert.ok(r.includes("\u2705 *Sin novedades en el periodo*"));
   assert.ok(r.includes("no identificó alertas sanitarias ni informes de seguridad nuevos"));
+  assert.ok(!r.includes("Sin requerimientos de verificación"));
   assert.ok(r.includes("_Vigilancia activa: revisiones diarias a las 6:00, 10:00, 14:00, 18:00._"));
   assert.ok(r.endsWith("_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_\n_Desarrollado por el QF Juan Pablo Saavedra_"));
 });
