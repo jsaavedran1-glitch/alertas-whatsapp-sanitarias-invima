@@ -17,15 +17,13 @@ Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecal
 7. Exclusivo HDV Villavicencio: nada de Puerto Carreño.
 8. Antes de ejecutar una función en el editor, confirmar en el selector que es la correcta (ver CLAUDE.md del bot de Farmacovigilancia: el dropdown a veces no aplica la selección con un clic). Para reemplazar el código completo en Monaco usar `monaco.editor.getModels()[0].setValue(...)`.
 
-## Estructura del sitio INVIMA (verificada 2026-10-20)
+## Estructura del sitio INVIMA (sitio nuevo, verificado 2026-10-22)
 
-> **22/10/2026: INVIMA cambió el sitio.** Las rutas de abajo devuelven una misma página nueva sin el listado. Diagnóstico en curso con `inspeccionarSitioInvima()`; actualizar esta sección cuando se adapte `parsearListado_`.
-
-- MED: `/alertas/medicamentos-productos-biologicos`. DM: `/alertas/dispositivos-medicos-invima` (la ruta `dispositivos-medicos-otras-tecnologias` da 404).
-- Ítem: `<div class="views-row ... alertas-invima-list">` con `views-field-title`, `views-field-field-tipo-de-documento`, `views-field-field-a-o` (fecha NO confiable), en DM además `views-field-field-numero-de-id-d-m` y `views-field-field-estado`, y `views-field-field-comunicado-invima` con el enlace "Ver" (URL absoluta, codificada con `%20`).
-- DM publica informes de seguridad en `ckfinder/userfiles/files/INFORMES DE SEGURIDAD/...`, con numeración propia → la clave incluye el tipo (`AS`/`IS`).
-- Los PDF de DM usan `No_ #355-2026` (con `#`).
-- Todo el parseo vive en `parsearListado_(html, fuente)`. Si INVIMA cambia el marcado, ajustar solo esa función y `test/dry-run.js`.
+- Desde el 22/10/2026 INVIMA usa un sitio Odoo: `https://www.invima.gov.co/alertas-sanitarias`, filtrado con `?direccion=` (`da` alimentos, `dm` medicamentos, `dd` dispositivos médicos, `dc` cosméticos) y `?tipo=alerta|informe`. Páginas: `/alertas-sanitarias/page/2?direccion=dm` (12 tarjetas por página). Las rutas viejas de `app.invima.gov.co/alertas/...` devuelven esa misma página sin filtrar.
+- Ítem: `<article class="inv-lst-tarjeta inv-dir--dm|dd">` con `inv-lst-cabeza` (dirección y número `358–2026`), `h2.inv-lst-tarjeta-titulo > a` (detalle `/alertas-sanitarias/<slug>`), `span.inv-lst-tag--alerta|--informe` y etiqueta de estado ("En seguimiento"), `inv-lst-fecha` (`dd-mm-aaaa · clasificación`, p. ej. "Producto fraudulento") y el PDF `/alertas-sanitarias/<id>/pdf`. Algunas alertas no traen número ni PDF.
+- La numeración de alertas e informes se conserva: las claves `FUENTE:AS|IS:NUM-AÑO` del `Historico` siguen valiendo. Sin número, la clave es `FUENTE:AS:T:<título normalizado>`.
+- Todo el parseo vive en `parsearListado_(html, fuente)` → `parsearTarjetas_` (sitio nuevo). Se conserva el parseo Drupal anterior (`views-row`, `ckfinder`) por si INVIMA lo restablece. Si el marcado cambia, ajustar solo esas funciones y `test/dry-run.js`; diagnosticar con `probarAcceso()` e `inspeccionarSitioInvima()`.
+- `leerFuentes_` traduce las URL viejas de `Config_Fuentes` a las nuevas (`migrarUrlFuente_`).
 
 ## Convenciones de código
 

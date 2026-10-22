@@ -42,6 +42,36 @@ function filaDm(titulo, idDm, tipo, carpeta, archivo) {
     carpeta + '/' + archivo + '" target="_blank">Ver</a></span> </span> </div> ';
 }
 
+// Tarjetas del sitio nuevo (Odoo, 22/10/2026), con el marcado registrado por inspeccionarSitioInvima().
+function tarjeta({ dir = "dm", numero = "", titulo, slug, tipo = "alerta", estado = "", fecha, clase = "", pdfId = "" }) {
+  const direccion = dir === "dd" ? "Dispositivos médicos y otras tecnologías" : "Medicamentos y productos biológicos";
+  return '<article class="inv-lst-tarjeta inv-dir--' + dir + ' "> <div class="inv-lst-cinta"></div> <div class="inv-lst-cuerpo"> ' +
+    '<div class="inv-lst-cabeza"> <div class="inv-lst-direccion"> <img alt="" class="inv-lst-direccion-icono" loading="lazy" src="/invima_alertas_sanitarias/static/src/img/direcciones/medicamentos.png"/> <span>' + direccion + '</span> </div> ' +
+    (numero ? '<span class="inv-lst-numero">' + numero + '</span> ' : '') + '</div> ' +
+    '<h2 class="inv-lst-tarjeta-titulo "> <a href="/alertas-sanitarias/' + slug + '">' + titulo + '</a> </h2> ' +
+    '<div class="inv-lst-etiquetas"> <span class="inv-lst-tag inv-lst-tag--' + tipo + '">' + (tipo === "informe" ? "Informe de seguridad" : "Alerta sanitaria") + '</span> ' +
+    (estado ? '<span class="inv-lst-tag inv-lst-tag--estado">' + estado + '</span> ' : '') + '</div> ' +
+    '<div class="inv-lst-pie"> <span class="inv-lst-fecha"> <span data-oe-type="date" data-oe-expression="alerta.fecha_publicacion">' + fecha + '</span>' +
+    (clase ? ' · ' + clase : '') + ' </span> ' +
+    (pdfId ? '<a class="inv-lst-pdf" href="/alertas-sanitarias/' + pdfId + '/pdf">PDF <i class="fa fa-download"></i></a> ' : '') +
+    '</div> </div> </article> ';
+}
+const PAGINA_NUEVA = (tarjetas) => '<html><head><title>Alertas sanitarias e informes de seguridad | Invima</title></head><body>' +
+  '<span class="inv-lst-conteo"> 6.256 documentos </span> <div class="inv-lst-rejilla"> ' + tarjetas.join("") + '</div></body></html>';
+const TARJETAS_MED = [
+  tarjeta({ titulo: "Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO",
+    slug: "alerta-sanitaria-sobre-suplementos-dietarios-sin-registro-sanitario", fecha: "20-10-2026", clase: "Alerta sanitaria especial" }),
+  tarjeta({ numero: "358&ndash;2026", titulo: "PUMPKIN SEED OIL-HAIR BOND SOFTGELS", slug: "pumpkin-seed-oil-hair-bond-softgels",
+    fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12939" }),
+  tarjeta({ numero: "357–2026", titulo: "DIALUX", slug: "dialux", fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12938" })
+];
+const TARJETAS_DM = [
+  tarjeta({ dir: "dd", numero: "149–2026", titulo: "Cementos óseos con gentamicina Heraeus® Cemento óseo radiopaco a base de PMMA PALACOS® R+G pro 40/60/80",
+    slug: "cementos-oseos-con-gentamicina-heraeus", tipo: "informe", estado: "En seguimiento", fecha: "13-10-2026", pdfId: "12905" }),
+  tarjeta({ dir: "dd", numero: "355–2026", titulo: "HemosIL AcuStar HIT-IgG (PF4-H)", slug: "hemosll-acustar-hit-igg-pf4-h",
+    estado: "En seguimiento", fecha: "13-10-2026", clase: "Producto defectuoso", pdfId: "12901" })
+];
+
 const ENVOLTURA = (filas) => '<form><select id="edit-field-tipo-de-documento-value"><option>Alertas sanitarias</option></select></form>' +
   '<div class="view-content"> ' + filas.join("") + '</div><footer>INVIMA</footer>';
 
@@ -179,8 +209,9 @@ function crearEntorno(opciones = {}) {
           const bytes = (estado.pdfs || {})[url];
           return { getResponseCode: () => (bytes ? 200 : 404), getBlob: () => ({ getBytes: () => bytes }) };
         }
-        const fuente = url.indexOf("dispositivos") >= 0 ? "DM" : "MED";
-        const pagina = Number((url.match(/page=(\d+)/) || [0, 0])[1]);
+        const fuente = /dispositivos|direccion=dd/.test(url) ? "DM" : "MED";
+        const nueva = url.match(/\/page\/(\d+)/);
+        const pagina = nueva ? Number(nueva[1]) - 1 : Number((url.match(/page=(\d+)/) || [0, 0])[1]);
         const html = estado.paginas && estado.paginas[fuente]
           ? (estado.paginas[fuente][pagina] || ENVOLTURA([]))
           : (pagina === 0 ? estado.html[fuente] : ENVOLTURA([]));
@@ -238,6 +269,67 @@ prueba("parsearListado_ DM (informes con # y numeracion propia)", () => {
   assert.strictEqual(items[2].clave, "DM:AS:355-2026");
 });
 
+prueba("sitio nuevo (Odoo): tarjetas de medicamentos con numero, fecha, clasificacion y PDF", () => {
+  const { g } = crearEntorno();
+  const it = g.parsearListado_(PAGINA_NUEVA(TARJETAS_MED), "MED");
+  assert.strictEqual(it.length, 3);
+  assert.strictEqual(it[1].clave, "MED:AS:358-2026", "&ndash; tambien sirve");
+  assert.strictEqual(it[2].clave, "MED:AS:357-2026");
+  assert.strictEqual(it[2].titulo, "DIALUX");
+  assert.strictEqual(it[2].fecha, "2026-10-16");
+  assert.strictEqual(it[2].clasificacion, "Producto fraudulento");
+  assert.strictEqual(it[2].url, "https://www.invima.gov.co/alertas-sanitarias/12938/pdf");
+  assert.strictEqual(it[2].urlDetalle, "https://www.invima.gov.co/alertas-sanitarias/dialux");
+  // Sin numero ni PDF: clave por titulo, la fecha 20-10-2026 no se toma como numero "10-2026".
+  assert.strictEqual(it[0].clave, "MED:AS:T:ALERTA SANITARIA SOBRE SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO");
+  assert.strictEqual(it[0].url, "https://www.invima.gov.co/alertas-sanitarias/alerta-sanitaria-sobre-suplementos-dietarios-sin-registro-sanitario");
+});
+
+prueba("sitio nuevo: dispositivos con informe de seguridad y estado; filtro por direccion", () => {
+  const { g } = crearEntorno();
+  const it = g.parsearListado_(PAGINA_NUEVA(TARJETAS_DM), "DM");
+  assert.strictEqual(JSON.stringify(it.map((x) => x.clave)), JSON.stringify(["DM:IS:149-2026", "DM:AS:355-2026"]));
+  assert.strictEqual(it[0].tipo, "Informe de seguridad");
+  assert.strictEqual(it[0].estadoDm, "En seguimiento");
+  assert.strictEqual(it[0].clasificacion, "");
+  assert.strictEqual(g.parsearListado_(PAGINA_NUEVA(TARJETAS_MED.concat(TARJETAS_DM)), "MED").length, 3, "MED ignora tarjetas dd");
+  assert.ok(g.formatearMensaje_(Object.assign(it[1], { nivel: "MEDIA" })).includes("\u{1F4C5} Publicada: 2026-10-13 · Producto defectuoso\n\u{1F194} Estado: En seguimiento"));
+});
+
+prueba("sitio nuevo: paginas /page/N, migracion de Config_Fuentes y foto desde /pdf", () => {
+  const { g } = crearEntorno();
+  assert.strictEqual(g.urlPagina_("https://www.invima.gov.co/alertas-sanitarias?direccion=dm", 0), "https://www.invima.gov.co/alertas-sanitarias?direccion=dm");
+  assert.strictEqual(g.urlPagina_("https://www.invima.gov.co/alertas-sanitarias?direccion=dm", 2), "https://www.invima.gov.co/alertas-sanitarias/page/3?direccion=dm");
+  assert.strictEqual(g.urlPagina_("https://www.invima.gov.co/alertas-sanitarias", 1), "https://www.invima.gov.co/alertas-sanitarias/page/2");
+  assert.strictEqual(g.migrarUrlFuente_("https://app.invima.gov.co/alertas/medicamentos-productos-biologicos"), "https://www.invima.gov.co/alertas-sanitarias?direccion=dm");
+  assert.strictEqual(g.migrarUrlFuente_("https://app.invima.gov.co/alertas/dispositivos-medicos-invima"), "https://www.invima.gov.co/alertas-sanitarias?direccion=dd");
+  assert.strictEqual(g.migrarUrlFuente_("https://otra.fuente/x"), "https://otra.fuente/x");
+});
+
+prueba("cambio de sitio: lo ya registrado no se repite (con numero y sin numero) y lo nuevo se envia", () => {
+  const { g, hojas, enviados, estado } = entornoListo();
+  // Config_Fuentes con las URL viejas, como esta la hoja real.
+  hojas.Config_Fuentes.getRange(2, 2, 2, 1).setValues([["https://app.invima.gov.co/alertas/medicamentos-productos-biologicos"],
+    ["https://app.invima.gov.co/alertas/dispositivos-medicos-invima"]]);
+  const roto = "https://app.invima.gov.co/alertas/sites/all/modules/ckeditor/ckfinder/ckfinder.html";
+  hojas.Historico.getRange(2, 1, 3, 12).setValues([
+    ["MED:" + roto, "MED", "", "", "Alerta Sanitaria sobre : SUPLEMENTOS DIETARIOS SIN REGISTRO SANITARIO", "Alerta sanitaria", "", roto, "", "BAJA", "", "RESUMEN_SEMANAL"],
+    ["MED:AS:358-2026", "MED", "358", "2026", "PUMPKIN", "Alerta sanitaria", "", "", "", "BAJA", "", "RESUMEN_SEMANAL"],
+    ["DM:IS:149-2026", "DM", "149", "2026", "Cementos", "Informe de seguridad", "", "", "", "ALTA", "", "SI"]
+  ]);
+  estado.paginas = {
+    MED: [PAGINA_NUEVA(TARJETAS_MED.concat([tarjeta({ numero: "359–2026", titulo: "RETIRO DE LOTE BUTILBROMURO DE HIOSCINA",
+      slug: "retiro", fecha: "21-10-2026", clase: "Retiro de producto", pdfId: "12950" })]))],
+    DM: [PAGINA_NUEVA(TARJETAS_DM)]
+  };
+  const r = g.revisarAlertas();
+  assert.strictEqual(JSON.stringify(r.nuevos.map((x) => x.clave).sort()),
+    JSON.stringify(["DM:AS:355-2026", "MED:AS:357-2026", "MED:AS:359-2026"]));
+  const alerta = enviados.find((e) => String(e.cuerpo.message || "").includes("359-2026"));
+  assert.ok(alerta.cuerpo.message.includes("\u{1F4C4} PDF: https://www.invima.gov.co/alertas-sanitarias/12950/pdf"));
+  assert.ok(hojas.Log.filas().every((f) => f.estado === "OK"), "sin aviso tecnico");
+});
+
 prueba("parsearListado_ sin items y clave de respaldo por URL", () => {
   const { g } = crearEntorno();
   assert.strictEqual(g.parsearListado_("<html>error</html>", "MED").length, 0);
@@ -271,7 +363,7 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
     ["Config_Fuentes", "Historico", "Listado_Terapeutico", "Log", "Reglas", "Vigilancia"]);
   assert.strictEqual(hojas.Reglas.d.length, 1 + g.PRECARGA.Reglas.length);
   assert.deepStrictEqual(hojas.Reglas.d[0], ["termino", "nivel", "motivo"]);
-  assert.strictEqual(hojas.Config_Fuentes.d[2][1], "https://app.invima.gov.co/alertas/dispositivos-medicos-invima");
+  assert.strictEqual(hojas.Config_Fuentes.d[2][1], "https://www.invima.gov.co/alertas-sanitarias?direccion=dd");
   assert.strictEqual(hojas.Historico.d[0].length, 12);
 });
 
@@ -403,7 +495,7 @@ prueba("cargaInicial pobla Historico sin enviar; revisarAlertas no repite", () =
   assert.strictEqual(enviados.length, 0);
   assert.strictEqual(hojas.Historico.d.length, 7);
   assert.ok(hojas.Historico.filas().every((f) => f.enviado === "CARGA_INICIAL"));
-  assert.ok(urlsInvima.some((u) => u.endsWith("page=1")));
+  assert.ok(urlsInvima.some((u) => u.includes("/alertas-sanitarias/page/2?")));
   g.revisarAlertas();
   assert.strictEqual(enviados.length, 0);
   assert.strictEqual(hojas.Historico.d.length, 7);
@@ -443,8 +535,8 @@ prueba("revision sigue a la pagina siguiente solo si toda la pagina es nueva", (
   g.revisarAlertas();
   const claves = hojas.Historico.filas().map((f) => f.clave);
   assert.ok(claves.includes("MED:AS:908-2026"), "la novena alerta (pagina 1) no se pierde");
-  assert.ok(!urlsInvima.some((u) => u.includes("medicamentos") && u.endsWith("page=2")), "se detiene al encontrar una alerta conocida");
-  assert.ok(urlsInvima.some((u) => u.includes("dispositivos") && u.endsWith("page=1")), "DM toda nueva -> revisa la pagina 1");
+  assert.ok(!urlsInvima.some((u) => u.includes("/page/3?direccion=dm")), "se detiene al encontrar una alerta conocida");
+  assert.ok(urlsInvima.some((u) => u.includes("/page/2?direccion=dd")), "DM toda nueva -> revisa la pagina siguiente");
 });
 
 prueba("vistaPrevia muestra todas las alertas de la pagina 0 sin enviar ni escribir", () => {
@@ -777,7 +869,7 @@ prueba("probarAcceso y volcarMuestraHtml (solo lectura)", () => {
   const { g, registro, enviados, urlsInvima } = crearEntorno();
   g.probarAcceso();
   g.volcarMuestraHtml();
-  assert.ok(urlsInvima.includes("https://app.invima.gov.co/alertas/dispositivos-medicos-invima?page=0"));
+  assert.ok(urlsInvima.includes("https://www.invima.gov.co/alertas-sanitarias?direccion=dd"));
   assert.ok(registro.some((l) => l.includes("MUESTRA 1") && l.includes("INFORMES")));
   assert.strictEqual(enviados.length, 0);
 });

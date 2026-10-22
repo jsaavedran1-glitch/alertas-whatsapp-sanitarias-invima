@@ -13,7 +13,8 @@
 
 var TZ = "America/Bogota";
 var USER_AGENT = "HDV-ESE-ServicioFarmaceutico-AlertasINVIMA/1.0 (Apps Script; Villavicencio, Colombia)";
-var BASE_INVIMA = "https://app.invima.gov.co";
+var BASE_INVIMA = "https://www.invima.gov.co";
+var BASE_INVIMA_ANTERIOR = "https://app.invima.gov.co"; // sitio Drupal, reemplazado el 22/10/2026
 
 var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
 var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje agrupado
@@ -48,14 +49,22 @@ var HORAS_REVISION = [6, 10, 14, 18];
 var COL_ENVIADO = 12; // columna "enviado" en Historico
 
 // Fuentes por defecto. En operacion se leen de la pestana Config_Fuentes.
+// Sitio nuevo (Odoo, 22/10/2026): un solo listado filtrado por direccion: da alimentos,
+// dm medicamentos, dd dispositivos medicos, dc cosmeticos.
 var FUENTES_DEFECTO = [
-  { fuente: "MED", url: BASE_INVIMA + "/alertas/medicamentos-productos-biologicos" },
-  // Verificado en probarAcceso() 2026-10-20: la ruta "dispositivos-medicos-otras-tecnologias" da 404.
-  { fuente: "DM", url: BASE_INVIMA + "/alertas/dispositivos-medicos-invima" }
+  { fuente: "MED", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dm" },
+  { fuente: "DM", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dd" }
+];
+var DIRECCION_FUENTE = { MED: "dm", DM: "dd" };
+
+// URLs del sitio anterior que pueden seguir en Config_Fuentes: se traducen a las nuevas.
+var MIGRACION_URLS = [
+  [/\/alertas\/medicamentos-productos-biologicos/i, BASE_INVIMA + "/alertas-sanitarias?direccion=dm"],
+  [/\/alertas\/dispositivos-medicos/i, BASE_INVIMA + "/alertas-sanitarias?direccion=dd"]
 ];
 
 // Pagina indice, usada solo en la prueba de acceso para descubrir rutas.
-var URL_INDICE_ALERTAS = BASE_INVIMA + "/alertas";
+var URL_INDICE_ALERTAS = BASE_INVIMA + "/alertas-sanitarias";
 
 var REGEX_PDF_ALERTA = /ckfinder\/userfiles\/files\/ALERTAS[^"']+\.pdf/gi;
 
@@ -417,16 +426,31 @@ function describirPagina_(html) {
   return h.length + " caracteres; titulo: " + (titulo || "(sin titulo)") + "; texto: " + (texto || "(vacio)");
 }
 
+// Sitio nuevo: /alertas-sanitarias, /alertas-sanitarias/page/2, ... (la consulta va al final).
+// Sitio anterior: ?page=0, ?page=1, ...
 function urlPagina_(base, pagina) {
+  if (/\/alertas-sanitarias(\?|$)/.test(base)) {
+    if (pagina === 0) return base;
+    return base.replace(/\/alertas-sanitarias(\?|$)/, "/alertas-sanitarias/page/" + (pagina + 1) + "$1");
+  }
   return base + (base.indexOf("?") >= 0 ? "&" : "?") + "page=" + pagina;
 }
 
-// Unico punto de parseo del listado (Drupal Views, HTML del servidor).
-// Cada item es un <div class="views-row ... alertas-invima-list"> con:
+function migrarUrlFuente_(url) {
+  for (var i = 0; i < MIGRACION_URLS.length; i++) {
+    if (MIGRACION_URLS[i][0].test(url) && url.indexOf(BASE_INVIMA_ANTERIOR) === 0) return MIGRACION_URLS[i][1];
+  }
+  return url;
+}
+
+// Unico punto de parseo del listado. Desde el 22/10/2026 INVIMA usa un sitio Odoo con tarjetas
+// (parsearTarjetas_); se conserva el parseo del sitio Drupal anterior por si vuelve a usarse.
+// Drupal: cada item es un <div class="views-row ... alertas-invima-list"> con:
 //   views-field-title, views-field-field-tipo-de-documento, views-field-field-a-o (fecha, NO confiable),
 //   views-field-field-numero-de-id-d-m y views-field-field-estado (solo DM),
 //   views-field-field-comunicado-invima (enlace "Ver" al PDF).
 function parsearListado_(html, fuente) {
+  if (String(html || "").indexOf("inv-lst-tarjeta") >= 0) return parsearTarjetas_(html, fuente);
   var items = [];
   var bloques = String(html || "").split(/<div class="views-row[ "]/);
   for (var i = 1; i < bloques.length; i++) {
@@ -437,7 +461,7 @@ function parsearListado_(html, fuente) {
     if (!href || !titulo) continue;
 
     var url = limpiarTexto_(href);
-    if (url.indexOf("http") !== 0) url = BASE_INVIMA + (url.charAt(0) === "/" ? "" : "/") + url;
+    if (url.indexOf("http") !== 0) url = BASE_INVIMA_ANTERIOR + (url.charAt(0) === "/" ? "" : "/") + url;
     var tipo = campo_(b, "field-tipo-de-documento");
     var esInforme = /INFORME/.test(normalizar_(tipo)) || /\/INFORMES/i.test(url);
     var num = extraerNumero_(decodificarUrl_(url)) || extraerNumero_(titulo);
@@ -460,6 +484,76 @@ function parsearListado_(html, fuente) {
     });
   }
   return items;
+}
+
+// Sitio Odoo (22/10/2026). Cada alerta es un <article class="inv-lst-tarjeta inv-dir--XX">:
+//   inv-lst-cabeza (direccion y numero "358–2026"), h2.inv-lst-tarjeta-titulo > a (detalle),
+//   span.inv-lst-tag (--alerta / --informe y estado, p. ej. "En seguimiento"),
+//   inv-lst-fecha (dd-mm-aaaa · clasificacion) y el enlace /alertas-sanitarias/<id>/pdf.
+function parsearTarjetas_(html, fuente) {
+  var items = [];
+  var bloques = String(html || "").split(/<article\s+class="inv-lst-tarjeta\b/);
+  var dirEsperada = DIRECCION_FUENTE[fuente];
+  for (var i = 1; i < bloques.length; i++) {
+    var b = bloques[i].split(/<\/article>/)[0];
+    var dir = (b.match(/^[^>]*inv-dir--(\w+)/) || [0, ""])[1];
+    if (dirEsperada && dir && dir !== dirEsperada) continue;
+    var t = b.match(/inv-lst-tarjeta-titulo[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    if (!t) continue;
+    var titulo = limpiarTexto_(t[2]);
+    var detalle = urlAbsoluta_(limpiarTexto_(t[1]));
+    var pdf = (b.match(/href="([^"]*\/alertas-sanitarias\/\d+\/pdf)"/) || [])[1];
+
+    var etiquetas = [];
+    var re = /<span[^>]*class="inv-lst-tag\b([^"]*)"[^>]*>([\s\S]*?)<\/span>/g, m;
+    while ((m = re.exec(b)) !== null) etiquetas.push({ clase: m[1], texto: limpiarTexto_(m[2]) });
+    var esInforme = etiquetas.some(function(e) { return /--informe/.test(e.clase) || /INFORME/.test(normalizar_(e.texto)); });
+    var estado = etiquetas.filter(function(e) {
+      return !/--(alerta|informe)/.test(e.clase) && !/ALERTA|INFORME/.test(normalizar_(e.texto));
+    }).map(function(e) { return e.texto; }).join(", ");
+
+    var fechaTxt = (b.match(/alerta\.fecha_publicacion"[^>]*>\s*([^<]+?)\s*</) || [0, ""])[1];
+    var fm = fechaTxt.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    var fecha = fm ? fm[3] + "-" + ("0" + fm[2]).slice(-2) + "-" + ("0" + fm[1]).slice(-2) : fechaTxt;
+    // inv-lst-fecha contiene la fecha en un span interno y despues " · clasificacion".
+    var pie = limpiarTexto_((b.match(/class="inv-lst-fecha"[^>]*>((?:[^<]|<span[^>]*>[^<]*<\/span>)*)<\/span>/) || [0, ""])[1]);
+    var clasificacion = pie.indexOf("·") >= 0 ? pie.split("·").slice(1).join("·").trim() : "";
+
+    var cabeza = limpiarTexto_((b.match(/inv-lst-cabeza([\s\S]*?)<h2/) || [0, ""])[1].replace(/^[^>]*>/, ""));
+    var sinFecha = limpiarTexto_(b.replace(/alerta\.fecha_publicacion"[^>]*>[^<]*</, ">"));
+    var num = numeroTarjeta_(cabeza) || extraerNumero_(titulo) || numeroTarjeta_(sinFecha);
+    var tipoCodigo = esInforme ? "IS" : "AS";
+    var url = pdf ? urlAbsoluta_(pdf) : detalle;
+
+    items.push({
+      clave: num ? fuente + ":" + tipoCodigo + ":" + num.numero + "-" + num.anio : claveSinNumero_(fuente, tipoCodigo, titulo, ""),
+      claveAnterior: "",
+      fuente: fuente,
+      tipoCodigo: tipoCodigo,
+      numero: num ? num.numero : "",
+      anio: num ? num.anio : "",
+      titulo: titulo,
+      tipo: esInforme ? "Informe de seguridad" : "Alerta sanitaria",
+      fecha: fecha,
+      clasificacion: clasificacion,
+      idDm: "",
+      estadoDm: estado,
+      url: url,
+      urlDetalle: detalle
+    });
+  }
+  return items;
+}
+
+// "358–2026" (guion, raya o guion largo) en la cabeza de la tarjeta.
+function numeroTarjeta_(texto) {
+  var m = String(texto || "").match(/(?:^|[^\d])(\d{1,4})\s*[\u2013\u2014\-]\s*(20\d{2})(?!\d)/);
+  return m ? { numero: String(Number(m[1])), anio: m[2] } : null;
+}
+
+function urlAbsoluta_(url) {
+  if (!url || url.indexOf("http") === 0) return url;
+  return BASE_INVIMA + (url.charAt(0) === "/" ? "" : "/") + url;
 }
 
 // Sin numero de alerta: si el enlace es un PDF propio, la clave es su URL; si no (INVIMA a veces
@@ -492,6 +586,8 @@ function limpiarTexto_(s) {
     .replace(/&#0?39;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&ndash;/g, "\u2013")
+    .replace(/&mdash;/g, "\u2014")
     .replace(/&#(\d+);/g, function(m, n) { return String.fromCharCode(Number(n)); })
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
@@ -686,8 +782,9 @@ function tituloCorto_(titulo) {
 // coincide con el de la alerta, se muestra la fecha en que el bot la detecto.
 function lineaFecha_(it) {
   var anioFecha = String(it.fecha || "").slice(0, 4);
-  if (it.fecha && (!it.anio || anioFecha === String(it.anio))) return emoji_(E.FECHA) + " Publicada: " + it.fecha;
-  return emoji_(E.FECHA) + " Detectada: " + Utilities.formatDate(it.fechaDeteccion || new Date(), TZ, "yyyy-MM-dd");
+  var extra = it.clasificacion ? " · " + it.clasificacion : "";
+  if (it.fecha && (!it.anio || anioFecha === String(it.anio))) return emoji_(E.FECHA) + " Publicada: " + it.fecha + extra;
+  return emoji_(E.FECHA) + " Detectada: " + Utilities.formatDate(it.fechaDeteccion || new Date(), TZ, "yyyy-MM-dd") + extra;
 }
 
 function firma_() {
@@ -702,8 +799,10 @@ function formatearMensaje_(it) {
     emoji_(E.TITULO) + " " + tituloCorto_(it.titulo),
     lineaFecha_(it)
   ];
-  if (it.idDm || it.estadoDm) {
-    lineas.push(emoji_(E.ID) + " ID INVIMA: " + (it.idDm || "—") + " · Estado: " + (it.estadoDm || "—"));
+  if (it.idDm) {
+    lineas.push(emoji_(E.ID) + " ID INVIMA: " + it.idDm + " · Estado: " + (it.estadoDm || "—"));
+  } else if (it.estadoDm) {
+    lineas.push(emoji_(E.ID) + " Estado: " + it.estadoDm);
   }
   if (it.coincidencia) {
     lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
@@ -791,7 +890,7 @@ function enviarEncuesta_(it, enviarReal) {
 
 // Descarga el PDF de la alerta solo para extraer la foto del producto; no se analiza su texto.
 function fotoProducto_(it) {
-  if (!FOTO_EN_ALERTAS || FUENTES_CON_FOTO.indexOf(it.fuente) < 0 || !it.url || !/\.pdf$/i.test(it.url)) return null;
+  if (!FOTO_EN_ALERTAS || FUENTES_CON_FOTO.indexOf(it.fuente) < 0 || !it.url || !/(\.pdf|\/pdf)$/i.test(it.url)) return null;
   try {
     var resp = UrlFetchApp.fetch(it.url, { muteHttpExceptions: true, headers: { "User-Agent": USER_AGENT } });
     if (resp.getResponseCode() !== 200) {
@@ -940,7 +1039,7 @@ function leerFuentes_(ss) {
   });
   if (filas.length === 0) throw new Error("Config_Fuentes no tiene fuentes activas.");
   return filas.map(function(f) {
-    return { fuente: String(f.fuente).trim().toUpperCase(), url: String(f.url).trim() };
+    return { fuente: String(f.fuente).trim().toUpperCase(), url: migrarUrlFuente_(String(f.url).trim()) };
   });
 }
 
@@ -951,8 +1050,11 @@ function clavesHistorico_(ss) {
   var ultima = hoja.getLastRow();
   if (ultima < 2) return claves;
   // Valor: titulo normalizado (para reconocer alertas guardadas con la clave anterior).
+  // Las alertas sin numero tambien se indexan por fuente + titulo: su clave cambio con el sitio nuevo.
   hoja.getRange(2, 1, ultima - 1, 5).getValues().forEach(function(f) {
-    if (f[0]) claves[String(f[0])] = normalizar_(f[4]) || true;
+    if (!f[0]) return;
+    claves[String(f[0])] = normalizar_(f[4]) || true;
+    if (!String(f[2])) claves["#T#" + f[1] + "|" + normalizar_(f[4])] = true;
   });
   return claves;
 }
@@ -960,6 +1062,7 @@ function clavesHistorico_(ss) {
 // La alerta ya esta en el Historico, con su clave actual o con la clave anterior y el mismo titulo.
 function yaRegistrada_(claves, it) {
   if (claves[it.clave]) return true;
+  if (!it.numero && claves["#T#" + it.fuente + "|" + normalizar_(it.titulo)]) return true;
   return !!it.claveAnterior && claves[it.claveAnterior] === normalizar_(it.titulo);
 }
 
@@ -992,7 +1095,7 @@ function escribirLog_(ss, registros, modo) {
 
 function probarAcceso() {
   var objetivos = FUENTES_DEFECTO.map(function(f) {
-    return { fuente: f.fuente, url: f.url + "?page=0" };
+    return { fuente: f.fuente, url: urlPagina_(f.url, 0) };
   });
   objetivos.push({ fuente: "INDICE", url: URL_INDICE_ALERTAS });
 
@@ -1006,10 +1109,11 @@ function probarAcceso() {
         headers: { "User-Agent": USER_AGENT }
       });
       var html = resp.getContentText("UTF-8");
-      var pdfs = html.match(REGEX_PDF_ALERTA) || [];
+      var pdfs = (html.match(REGEX_PDF_ALERTA) || []).concat(html.match(/\/alertas-sanitarias\/\d+\/pdf/g) || []);
       Logger.log("[%s] %s", obj.fuente, obj.url);
-      Logger.log("   HTTP=%s | longitud HTML=%s | enlaces PDF ALERTAS=%s | %s ms",
-        resp.getResponseCode(), html.length, pdfs.length, Date.now() - inicio);
+      Logger.log("   HTTP=%s | longitud HTML=%s | enlaces PDF=%s | alertas leidas=%s | %s ms",
+        resp.getResponseCode(), html.length, pdfs.length,
+        obj.fuente === "INDICE" ? "-" : parsearListado_(html, obj.fuente).length, Date.now() - inicio);
       if (pdfs.length > 0) Logger.log("   Primer PDF: %s", pdfs[0]);
       else Logger.log("   Pagina sin alertas: %s", describirPagina_(html));
       registrarEnlacesAlertas_(html);
@@ -1024,7 +1128,7 @@ function probarAcceso() {
 // enlaces relevantes, scripts, URLs de API/JSON en el HTML, marcadores de plataforma y un fragmento
 // alrededor de la primera mencion de alertas. Solo lectura; no envia nada.
 function inspeccionarSitioInvima() {
-  var url = FUENTES_DEFECTO[0].url + "?page=0";
+  var url = urlPagina_(FUENTES_DEFECTO[0].url, 0);
   var r = descargar_(url);
   var html = r.html || "";
   Logger.log("[INSPECCION] %s -> HTTP %s, %s caracteres", url, r.codigo, html.length);
@@ -1068,7 +1172,7 @@ function inspeccionHtml_(html) {
 function volcarMuestraHtml() {
   FUENTES_DEFECTO.forEach(function(f, i) {
     if (i > 0) Utilities.sleep(ESPERA_FUENTES_MS);
-    var resp = UrlFetchApp.fetch(f.url + "?page=0", {
+    var resp = UrlFetchApp.fetch(urlPagina_(f.url, 0), {
       muteHttpExceptions: true,
       headers: { "User-Agent": USER_AGENT }
     });

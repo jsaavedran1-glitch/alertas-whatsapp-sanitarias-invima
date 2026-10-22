@@ -33,7 +33,7 @@ De la publicación de INVIMA a la evidencia de socialización en los servicios d
 
 ```mermaid
 flowchart LR
-    INV["INVIMA<br/>app.invima.gov.co/alertas<br/>MED y DM"] -->|"lectura HTML<br/>6, 10, 14 y 18 h"| BOT["Bot Apps Script<br/>alertas-sanitarias-invima-hdv"]
+    INV["INVIMA<br/>invima.gov.co/alertas-sanitarias<br/>MED (dm) y DM (dd)"] -->|"lectura HTML<br/>6, 10, 14 y 18 h"| BOT["Bot Apps Script<br/>alertas-sanitarias-invima-hdv"]
     HOJA[("Hoja de control<br/>Listado_Terapeutico · Vigilancia<br/>Reglas · Historico · Log")] <-->|"reglas / registro"| BOT
     BOT -->|"GREEN-API<br/>instancia 710722693364"| WA["Grupo WhatsApp<br/>Nuevo SF-HDV-SyD-InterSalud"]
     WA --> SERV["Servicios asistenciales<br/>leen, verifican y socializan"]
@@ -51,8 +51,8 @@ flowchart TD
     T["Disparador diario<br/>6, 10, 14 y 18 h (±15 min)"] --> L{"LockService:<br/>¿otra ejecución en curso?"}
     L -->|sí| FIN0["Se omite"]
     L -->|no| F["Lee Config_Fuentes (MED, DM)"]
-    F --> P["Descarga ?page=0 de cada fuente"]
-    P --> PA["parsearListado_: título, tipo, fecha,<br/>ID y estado DM, enlace al PDF"]
+    F --> P["Descarga la primera página de cada fuente"]
+    P --> PA["parsearListado_: título, tipo, número, fecha,<br/>clasificación, estado y PDF de cada tarjeta"]
     PA -->|"0 ítems o HTTP ≠ 200"| AV["Log ERROR + aviso técnico<br/>[INVIMA] ⚠️ (máx. 1 por día)"]
     PA --> K["Clave FUENTE:AS|IS:NÚMERO-AÑO<br/>(sin número: título normalizado)"]
     K --> H{"¿Clave ya en Historico?"}
@@ -182,7 +182,7 @@ Ninguna clave se reenvía: la alerta queda registrada **antes** de enviarse, as�
 
 - **Proyecto:** Apps Script independiente (standalone), propiedad de `controldecalidadgases@hdv.gov.co`. Sin clasp (misma convención que el bot de Farmacovigilancia): el código se copia de `Codigo.gs` al editor.
 - **Hoja de control:** Google Sheets indicada en `SS_ID`.
-- **Fuentes:** HTML del servidor (Drupal Views) de `app.invima.gov.co/alertas/...`. Cada página trae 8 ítems. En operación normal se lee `?page=0` y, solo si toda la página es nueva, la siguiente (hasta 3 páginas), para no perder alertas cuando INVIMA publica más de 8 el mismo día (el 19/10/2026 publicó 9 de dispositivos).
+- **Fuentes:** listado de [www.invima.gov.co/alertas-sanitarias](https://www.invima.gov.co/alertas-sanitarias) (sitio Odoo desde el 22/10/2026), filtrado por dirección: `?direccion=dm` (medicamentos) y `?direccion=dd` (dispositivos médicos). Cada página trae 12 tarjetas. En operación normal se lee la primera página y, solo si toda es nueva, la siguiente (`/page/2`, hasta 3 páginas), para no perder alertas cuando INVIMA publica muchas el mismo día. Las URL del sitio anterior (`app.invima.gov.co/alertas/...`) en `Config_Fuentes` se traducen solas.
 - **Disparadores:** `revisarAlertas` diario a las 6, 10, 14 y 18 h; `resumenSemanal` los lunes a las 7 h (America/Bogota, ±15 min).
 
 El detalle está en [Flujo de funcionamiento](#flujo-de-funcionamiento).
@@ -265,7 +265,7 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
   - La coincidencia es solo sobre el **título** del listado: si INVIMA nombra el lote únicamente dentro del PDF, no se detecta (el PDF solo se descarga para extraer la foto; su texto no se analiza).
 - **Envío:** ALTA y MEDIA de inmediato (ALTA primero), 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. BAJA solo en el resumen semanal.
 - **Contacto para dudas:** cada alerta termina con `❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408` (`CONTACTO_DUDAS`): el enlace abre el chat del QF, sin envío ni consumo de cuota.
-- **Listado ilegible** (HTTP ≠ 200 o 0 ítems en `page=0`): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
+- **Listado ilegible** (HTTP ≠ 200 o 0 ítems en la primera página; el `Log` guarda título y texto de la página recibida): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
 - **Foto del producto (solo MED):** cada alerta individual de medicamentos se envía como la foto del producto extraída del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si el PDF no descarga, no trae foto, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. DM siempre como texto: sus PDF solo traen las imágenes de la plantilla (diagnóstico del 20/10/2026: MED 39 de 40 con foto, DM 0 de 26). Se desactiva con `FOTO_EN_ALERTAS = false`.
 - **GREEN-API:** solo `sendMessage`, `sendFileByUpload` y `sendPoll` a `GA_CHAT_ID`, y `lastIncomingMessages` (lectura) en `buscarIdGrupo()`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
 
@@ -317,7 +317,7 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 | `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |
 | `buscarIdGrupo()` | Muestra el `GA_CHAT_ID` del grupo donde alguien escribió `ID BOT` en las últimas 24 h (GREEN-API `lastIncomingMessages`, solo lectura; no usa `getContacts` ni `getChats` y no registra otros mensajes). El número del bot debe ser miembro del grupo | No |
 | `reiniciarDiagnosticoImagenes()` | Vacía `Diag_Imagenes` para repetir el diagnóstico desde cero | No |
-| `probarAcceso()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA | No |
+| `probarAcceso()`, `inspeccionarSitioInvima()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA (`inspeccionarSitioInvima` resume enlaces, scripts y marcado del listado) | No |
 
 ## Pruebas locales
 

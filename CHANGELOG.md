@@ -2,6 +2,14 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.0.0] - 2026-10-22
+
+### Cambiado
+- **INVIMA cambió de sitio** (Odoo, `www.invima.gov.co/alertas-sanitarias`). El bot lee las tarjetas nuevas (`parsearTarjetas_`): número, título, alerta/informe, estado, fecha (`dd-mm-aaaa` → `aaaa-mm-dd`), clasificación ("Producto fraudulento", "Producto defectuoso"…) y PDF `/alertas-sanitarias/<id>/pdf`. Fuentes: `?direccion=dm` (MED) y `?direccion=dd` (DM); páginas `/page/N`.
+- Las URL viejas de `Config_Fuentes` se traducen solas (`migrarUrlFuente_`). Las claves con número no cambian; las alertas sin número ya registradas se reconocen por fuente y título, así que nada se reenvía.
+- El mensaje muestra la clasificación junto a la fecha (`📅 Publicada: 2026-10-16 · Producto fraudulento`) y el estado sin ID cuando no lo hay (`🆔 Estado: En seguimiento`).
+- La foto del producto se busca también en los PDF `/pdf` del sitio nuevo.
+
 ## [1.9.5] - 2026-10-22
 
 ### Agregado
