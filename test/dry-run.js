@@ -510,29 +510,51 @@ prueba("cargaInicial pobla Historico sin enviar; revisarAlertas no repite", () =
   assert.strictEqual(hojas.Historico.d.length, 7);
 });
 
-prueba("revisarAlertas envia ALTA/MEDIA al GA_CHAT_ID, BAJA queda para el resumen", () => {
+prueba("revisarAlertas envia todas las alertas nuevas (ALTA primero, tambien BAJA) y no repite", () => {
   const { g, hojas, enviados, estado } = entornoListo();
   g.cargaInicial();
   estado.html.MED = ENVOLTURA(MED_FILAS.concat([
-    filaMed("Alerta sanitaria sobre: RETIRO DE LOTE BUTILBROMURO DE HIOSCINA", "Alerta%20No_331-2026.pdf"),
-    filaMed("Alerta sanitaria sobre: PRODUCTO HOMEOPÁTICO X", "Alerta%20No_332-2026.pdf")
+    filaMed("Alerta sanitaria sobre: PRODUCTO HOMEOPÁTICO X", "Alerta%20No_332-2026.pdf"),
+    filaMed("Alerta sanitaria sobre: RETIRO DE LOTE BUTILBROMURO DE HIOSCINA", "Alerta%20No_331-2026.pdf")
   ]));
   g.revisarAlertas();
-  assert.strictEqual(enviados.length, 1, "solo la alerta ALTA, sin encuesta");
-  assert.strictEqual(enviados[0].cuerpo.chatId, "120363412506101174@g.us");
-  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"));
+  assert.strictEqual(enviados.length, 2, "ALTA y BAJA, sin encuesta (desactivada en este entorno)");
+  assert.ok(enviados.every((e) => e.cuerpo.chatId === "120363412506101174@g.us"));
+  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"), "ALTA primero");
   assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));
   assert.ok(enviados[0].cuerpo.message.includes("\u2753 Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408\n\n_Bot Alertas INVIMA"));
+  assert.ok(enviados[1].cuerpo.message.startsWith("[INVIMA-MED] ⚪ *PRIORIDAD BAJA*"));
+  assert.ok(enviados[1].cuerpo.message.includes("PRODUCTO HOMEOPÁTICO X"));
   const porClave = Object.fromEntries(hojas.Historico.filas().map((f) => [f.clave, f]));
   assert.strictEqual(porClave["MED:AS:331-2026"].enviado, "SI");
-  assert.strictEqual(porClave["MED:AS:332-2026"].enviado, "RESUMEN_SEMANAL");
+  assert.strictEqual(porClave["MED:AS:332-2026"].enviado, "SI");
   g.revisarAlertas();
-  assert.strictEqual(enviados.length, 1, "ninguna clave se envia dos veces");
+  assert.strictEqual(enviados.length, 2, "ninguna clave se envia dos veces");
   const resumen = g.resumenSemanal();
-  assert.strictEqual(enviados.length, 2);
+  assert.strictEqual(enviados.length, 3);
   assert.ok(resumen.includes("\u{1F48A} Medicamento: \u{1F534} 1 · \u{1F7E0} 0 · ⚪ 1"));
-  assert.ok(resumen.includes("PRODUCTO HOMEOPÁTICO X"));
+  assert.ok(!resumen.includes("PRODUCTO HOMEOPÁTICO X"), "la BAJA ya enviada no se repite en el resumen");
   assert.ok(!resumen.includes("ETHIOPIAN"), "la carga inicial no entra al resumen");
+});
+
+prueba("encuesta solo despues de ALTA y MEDIA, no de BAJA", () => {
+  const { g, enviados, estado } = entornoListo({ encuesta: true });
+  g.cargaInicial();
+  estado.html.MED = ENVOLTURA(MED_FILAS.concat([filaMed("Alerta sanitaria sobre: PRODUCTO HOMEOPÁTICO X", "Alerta%20No_332-2026.pdf"),
+    filaMed("Alerta sanitaria sobre: RETIRO DE LOTE BUTILBROMURO DE HIOSCINA", "Alerta%20No_331-2026.pdf")]));
+  g.revisarAlertas();
+  assert.strictEqual(JSON.stringify(enviados.map((e) => e.url.split("/")[4])), JSON.stringify(["sendMessage", "sendPoll", "sendMessage"]));
+});
+
+prueba("ENVIAR_BAJA = false: BAJA queda para el resumen del lunes (comportamiento anterior)", () => {
+  const { g, hojas, enviados, estado } = entornoListo();
+  g.cargaInicial();
+  g.ENVIAR_BAJA = false;
+  estado.html.MED = ENVOLTURA(MED_FILAS.concat([filaMed("Alerta sanitaria sobre: PRODUCTO HOMEOPÁTICO X", "Alerta%20No_332-2026.pdf")]));
+  g.revisarAlertas();
+  assert.strictEqual(enviados.length, 0);
+  assert.strictEqual(hojas.Historico.filas().find((f) => f.clave === "MED:AS:332-2026").enviado, "RESUMEN_SEMANAL");
+  assert.ok(g.resumenSemanal().includes("PRODUCTO HOMEOPÁTICO X"));
 });
 
 prueba("revision sigue a la pagina siguiente solo si toda la pagina es nueva", () => {
@@ -567,7 +589,7 @@ prueba("mas de 10 alertas inmediatas -> un solo mensaje agrupado", () => {
   g.revisarAlertas();
   // 1 agrupado + 1 aviso tecnico por DM vacio
   assert.strictEqual(enviados.length, 2);
-  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA] \u{1F50E} *12 alertas nuevas ALTA/MEDIA*"));
+  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA] \u{1F50E} *12 alertas nuevas*"));
   assert.ok(hojas.Historico.filas().every((f) => f.enviado === "SI"));
 });
 
@@ -585,7 +607,7 @@ prueba("sin encuestas: 10 alertas van individuales, 11 se agrupan", () => {
   e2.g.revisarAlertas();
   const envios2 = e2.enviados.filter((e) => !String(e.cuerpo.message || "").includes("No se pudo leer"));
   assert.strictEqual(envios2.length, 1);
-  assert.ok(envios2[0].cuerpo.message.includes("*11 alertas nuevas ALTA/MEDIA*"));
+  assert.ok(envios2[0].cuerpo.message.includes("*11 alertas nuevas*"));
   assert.ok(!e2.enviados.some((e) => e.url.includes("sendPoll")));
 });
 

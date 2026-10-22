@@ -60,8 +60,7 @@ flowchart TD
     H -->|no| PG{"¿Toda la página era nueva?"}
     PG -->|"sí (máx. 3 páginas)"| P2["Lee la página siguiente"] --> PA
     PG -->|no| C["clasificar_ sobre el título"]
-    C -->|"🔴 ALTA / 🟠 MEDIA"| PEND["Historico = PENDIENTE<br/>(antes de enviar: idempotencia)"]
-    C -->|"⚪ BAJA"| SEM["Historico = RESUMEN_SEMANAL"]
+    C -->|"🔴 ALTA / 🟠 MEDIA / ⚪ BAJA"| PEND["Historico = PENDIENTE<br/>(antes de enviar: idempotencia)"]
     PEND --> N{"¿Más de 10 alertas?"}
     N -->|no| IND["Envío individual (ALTA primero, 2 s entre mensajes)"]
     N -->|sí| AGR["Un solo mensaje agrupado [INVIMA]<br/>sin foto ni encuesta"]
@@ -69,7 +68,6 @@ flowchart TD
     ENV --> EST["Historico = SI / ERROR / NO_ENVIADO_466"]
     AGR --> EST
     EST --> LOG["Log: leídos, nuevos, enviados, estado"]
-    SEM --> LOG
 ```
 
 ### 3. Clasificación (`clasificar_`)
@@ -83,7 +81,7 @@ flowchart TD
     B -->|no| C{"¿Principio activo o marca del<br/>Listado_Terapeutico, Vigilancia<br/>(PROA, control especial) o regla ALTA<br/>(53 marcas de uso frecuente)?"}
     C -->|sí| ALTA
     C -->|no| D{"¿Término BAJA?<br/>(suplemento, homeopático, CBD,<br/>comercio electrónico)"}
-    D -->|sí| BAJA["⚪ BAJA → resumen del lunes"]
+    D -->|sí| BAJA["⚪ BAJA"]
     D -->|no| E{"¿Término MEDIA, informe de seguridad<br/>o laboratorio proveedor del HDV?"}
     E -->|sí| MEDIA["🟠 MEDIA"]
     E -->|no| BAJA
@@ -115,8 +113,10 @@ sequenceDiagram
         B->>G: sendMessage (solo texto)
     end
     G->>W: Alerta
-    B->>G: sendPoll "¿recibió y socializó esta información en su servicio?" ✅ Sí / ❌ No
-    G->>W: Encuesta
+    opt Solo 🔴 ALTA y 🟠 MEDIA
+        B->>G: sendPoll "¿recibió y socializó esta información en su servicio?" ✅ Sí / ❌ No
+        G->>W: Encuesta
+    end
     Note over B,G: HTTP 466 (cuota): se registra en Log,<br/>no se reintenta y se detienen los envíos de la ejecución
 ```
 
@@ -149,8 +149,8 @@ _Bot Alertas INVIMA · Servicio Farmacéutico HDV_
 ```mermaid
 stateDiagram-v2
     [*] --> CARGA_INICIAL: cargaInicial() (histórico, sin enviar)
-    [*] --> RESUMEN_SEMANAL: nueva ⚪ BAJA
-    [*] --> PENDIENTE: nueva 🔴 ALTA / 🟠 MEDIA
+    [*] --> PENDIENTE: nueva (🔴 / 🟠 / ⚪)
+    [*] --> RESUMEN_SEMANAL: ⚪ BAJA con ENVIAR_BAJA = false
     PENDIENTE --> SI: GREEN-API 200
     PENDIENTE --> ERROR: otro error de envío
     PENDIENTE --> NO_ENVIADO_466: cuota agotada
@@ -166,8 +166,8 @@ Ninguna clave se reenvía: la alerta queda registrada **antes** de enviarse, as�
 
 | Cuándo | Qué hace | ¿Escribe al grupo? |
 |---|---|---|
-| Diario 6, 10, 14 y 18 h | `revisarAlertas()`: revisa MED y DM | Solo si hay alertas nuevas 🔴/🟠, o el aviso técnico si INVIMA no responde (máx. 1 por día) |
-| Lunes 7 h | `resumenSemanal()`: conteo por fuente y nivel + títulos ⚪ BAJA de la semana | Siempre (si no hubo alertas: "Sin alertas nuevas detectadas en la semana.") |
+| Diario 6, 10, 14 y 18 h | `revisarAlertas()`: revisa MED y DM | Solo si INVIMA publicó alertas desde la revisión anterior (🔴, 🟠 o ⚪), o el aviso técnico si INVIMA no responde (máx. 1 por día) |
+| Lunes 7 h | `resumenSemanal()`: conteo de la semana por fuente y nivel | Siempre (si no hubo alertas: "Sin alertas nuevas detectadas en la semana.") |
 | Día 1 de cada mes | GREEN-API reinicia el cupo de chats del plan Developer | — |
 
 ### 7. Responsables
@@ -257,13 +257,13 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
   - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Listado_Terapeutico` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia`, o con una regla ALTA (p. ej. una marca comercial de uso frecuente: `Uso frecuente: OZEMPIC`). La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
   - ⚪ **BAJA:** contiene un término BAJA y no tiene coincidencias ALTA.
   - 🟠 **MEDIA:** contiene un término MEDIA, es un informe de seguridad, o nombra un **laboratorio proveedor** del HDV (`Laboratorio proveedor HDV: GENFAR`).
-  - ⚪ **BAJA:** el resto.
+  - ⚪ **BAJA:** el resto. También se envía (`ENVIAR_BAJA`), sin encuesta.
   - En el Listado Terapéutico y en Vigilancia se ignoran términos de menos de 4 caracteres (evita falsos positivos). En `Reglas` no hay mínimo (p. ej. `CBD`).
   - Se toleran plurales (`CATÉTERES` coincide con `CATETER`).
   - La coincidencia muestra un renglón por término encontrado, el más específico primero, con un producto de ejemplo: `ENDOTRAQUEAL: TUBO ENDOTRAQUEAL Nº 3.0 SIN NEUMO (UT1518020014356) y 18 más`.
   - En `principio_activo` se pueden poner varios términos separados por `;` (p. ej. `PLACA DE OSTEOSINTESIS; PLACA BLOQUEADA`). Use términos específicos: una palabra suelta como `PLACA` o `BALON` coincide también con "placas de Petri" o "tubo con balón".
   - La coincidencia es solo sobre el **título** del listado: si INVIMA nombra el lote únicamente dentro del PDF, no se detecta (el PDF solo se descarga para extraer la foto; su texto no se analiza).
-- **Envío:** ALTA y MEDIA de inmediato (ALTA primero), 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. BAJA solo en el resumen semanal.
+- **Envío:** todas las alertas nuevas (🔴 ALTA, 🟠 MEDIA y ⚪ BAJA) en la revisión en que se detectan, ALTA primero, 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. Solo se envía lo que no estaba en `Historico`: lo que INVIMA publicó desde la revisión anterior. Decisión del referente del 22/10/2026; con `ENVIAR_BAJA = false` las BAJA vuelven a quedar solo para el resumen del lunes. La encuesta va solo después de ALTA y MEDIA (`ENCUESTA_EN_BAJA`).
 - **Contacto para dudas:** cada alerta termina con `❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408` (`CONTACTO_DUDAS`): el enlace abre el chat del QF, sin envío ni consumo de cuota.
 - **Listado ilegible** (HTTP ≠ 200 o 0 ítems en la primera página; el `Log` guarda título y texto de la página recibida): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
 - **Foto del producto (solo MED):** cada alerta individual de medicamentos se envía como la foto del producto extraída del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si el PDF no descarga, no trae foto, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. DM siempre como texto: sus PDF solo traen las imágenes de la plantilla (diagnóstico del 20/10/2026: MED 39 de 40 con foto, DM 0 de 26). Se desactiva con `FOTO_EN_ALERTAS = false`.

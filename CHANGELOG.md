@@ -2,6 +2,12 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.1.0] - 2026-10-22
+
+### Cambiado
+- Se envían **todas las alertas nuevas**, también las ⚪ BAJA, en la revisión en que se detectan (decisión del referente). Orden: ALTA, MEDIA, BAJA. La encuesta va solo después de ALTA y MEDIA. El resumen del lunes deja de repetir las BAJA ya enviadas. `ENVIAR_BAJA = false` restablece el comportamiento anterior.
+- El mensaje agrupado (más de 10) dice "N alertas nuevas".
+
 ## [2.0.0] - 2026-10-22
 
 ### Cambiado

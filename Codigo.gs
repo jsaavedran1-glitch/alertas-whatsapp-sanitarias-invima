@@ -18,6 +18,11 @@ var BASE_INVIMA_ANTERIOR = "https://app.invima.gov.co"; // sitio Drupal, reempla
 
 var MAX_PAGINAS_REVISION = 3;   // el listado trae 8 items por pagina; se sigue a la siguiente solo si toda la pagina es nueva
 var MAX_MENSAJES = 10;           // por ejecucion; si hay mas, un solo mensaje agrupado
+// Desde el 22/10/2026 (decision del referente) se envian todas las alertas nuevas, tambien las BAJA,
+// en la revision en que se detectan. Con false, las BAJA vuelven a quedar solo para el resumen del lunes.
+var ENVIAR_BAJA = true;
+// La encuesta de socializacion va solo despues de las ALTA y MEDIA.
+var ENCUESTA_EN_BAJA = false;
 
 // Encuesta de socializacion: despues de cada alerta enviada de forma individual se envia una
 // encuesta de WhatsApp (sendPoll) para que cada servicio confirme que la recibio y socializo.
@@ -296,8 +301,8 @@ function ejecutar_(modo) {
 // Envia (o simula) las alertas ALTA y MEDIA; las BAJA quedan para el resumen semanal.
 // Devuelve true si GREEN-API respondio 466 (cuota excedida).
 function procesarNuevos_(hist, nuevos, registros, modo) {
-  var inmediatos = nuevos.filter(function(it) { return it.nivel !== "BAJA"; });
-  var bajas = nuevos.filter(function(it) { return it.nivel === "BAJA"; });
+  var inmediatos = nuevos.filter(function(it) { return ENVIAR_BAJA || it.nivel !== "BAJA"; });
+  var bajas = nuevos.filter(function(it) { return !ENVIAR_BAJA && it.nivel === "BAJA"; });
   inmediatos.sort(function(a, b) { return ordenNivel_(a.nivel) - ordenNivel_(b.nivel); });
 
   // Idempotencia: la clave queda en el Historico como PENDIENTE ANTES de enviar.
@@ -323,7 +328,7 @@ function procesarNuevos_(hist, nuevos, registros, modo) {
       if (r.cuota) cuotaAgotada = true;
       estado = r.ok ? ENVIADO.SI : (r.cuota ? ENVIADO.CUOTA : ENVIADO.ERROR);
       // La encuesta no cambia el estado de la alerta: si falla, la alerta ya quedo enviada.
-      if (r.ok && lote.items.length === 1) {
+      if (r.ok && lote.items.length === 1 && (ENCUESTA_EN_BAJA || lote.items[0].nivel !== "BAJA")) {
         Utilities.sleep(ESPERA_MENSAJES_MS);
         if (enviarEncuesta_(lote.items[0], modo.enviar).cuota) cuotaAgotada = true;
       }
@@ -371,7 +376,8 @@ function resumenSemanal_(enviarReal) {
     if (isNaN(fd.getTime()) || fd < desde || f.enviado === ENVIADO.CARGA) return;
     var c = conteo[f.fuente] = conteo[f.fuente] || { ALTA: 0, MEDIA: 0, BAJA: 0 };
     if (c[f.nivel] !== undefined) c[f.nivel]++;
-    if (f.nivel === "BAJA") bajas.push(f);
+    // Solo las BAJA que no se enviaron en su momento (ENVIAR_BAJA = false o registros anteriores).
+    if (f.nivel === "BAJA" && f.enviado === ENVIADO.SEMANAL) bajas.push(f);
   });
 
   var lineas = ["[INVIMA] " + emoji_(E.RESUMEN) + " *Resumen semanal*",
@@ -814,7 +820,7 @@ function formatearMensaje_(it) {
 
 // Mensaje unico cuando hay mas de MAX_MENSAJES alertas inmediatas en una ejecucion.
 function formatearAgrupado_(items) {
-  var lineas = ["[INVIMA] " + emoji_(E.REVISAR) + " *" + items.length + " alertas nuevas ALTA/MEDIA*", "_Resumen agrupado_"];
+  var lineas = ["[INVIMA] " + emoji_(E.REVISAR) + " *" + items.length + " alertas nuevas*", "_Resumen agrupado_"];
   items.forEach(function(it) {
     lineas.push("", emojiNivel_(it.nivel) + " *" + encabezado_(it) + "* · " + etiquetaFuente_(it.fuente),
       emoji_(E.TITULO) + " " + tituloCorto_(it.titulo));
