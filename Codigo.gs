@@ -63,9 +63,9 @@ var COL_ENVIADO = 12; // columna "enviado" en Historico
 
 // Fuentes por defecto. En operacion se leen de la pestana Config_Fuentes.
 // Sitio nuevo (Odoo, 22/10/2026): un solo listado filtrado por direccion: da alimentos,
-// dm medicamentos, dd dispositivos medicos, dc cosmeticos. ALI se agrego el 30/10/2026 (pedido del
-// referente); COS esta definida pero inactiva (no aplica al HDV). En una hoja ya creada hay que anadir
-// las filas a Config_Fuentes y correr cargaInicialFuente(...) antes de activar una fuente.
+// dm medicamentos, dd dispositivos medicos, dc cosmeticos. ALI y COS estan definidas pero inactivas:
+// el referente decidio (30/10/2026) que el bot cubre solo medicamentos y dispositivos medicos. Si algun
+// dia se activa una, correr antes cargaInicialFuente(...) para no enviar su historico.
 var FUENTES_DEFECTO = [
   { fuente: "MED", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dm" },
   { fuente: "DM", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dd" },
@@ -73,6 +73,7 @@ var FUENTES_DEFECTO = [
   { fuente: "COS", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dc" }
 ];
 var DIRECCION_FUENTE = { MED: "dm", DM: "dd", ALI: "da", COS: "dc" };
+var FUENTES_INACTIVAS = ["ALI", "COS"]; // definidas pero no aplican al HDV
 
 // URLs del sitio anterior que pueden seguir en Config_Fuentes: se traducen a las nuevas.
 var MIGRACION_URLS = [
@@ -100,8 +101,8 @@ var ENCABEZADOS = {
 };
 
 var PRECARGA = {
-  // COS (cosmeticos, aseo y plaguicidas) queda inactiva: no aplica al HDV (referente, 30/10/2026).
-  Config_Fuentes: FUENTES_DEFECTO.map(function(f) { return [f.fuente, f.url, f.fuente === "COS" ? "NO" : "SI"]; }),
+  // ALI y COS quedan inactivas: no aplican al HDV (decision del referente, 30/10/2026).
+  Config_Fuentes: FUENTES_DEFECTO.map(function(f) { return [f.fuente, f.url, FUENTES_INACTIVAS.indexOf(f.fuente) >= 0 ? "NO" : "SI"]; }),
   Reglas: [
     ["FALSIFICACIÓN", "MEDIA", ""], ["FALSIFICADO", "MEDIA", ""], ["FRAUDULENTO", "MEDIA", ""], ["LOTE", "MEDIA", ""],
     ["RETIRO", "MEDIA", ""], ["RECALL", "MEDIA", ""], ["CALIDAD", "MEDIA", ""], ["CONTAMINACIÓN", "MEDIA", ""],
