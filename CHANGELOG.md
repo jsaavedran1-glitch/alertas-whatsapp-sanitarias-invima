@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.4.2] - 2026-10-30
+
+### Corregido
+- `Vigilancia` (antimicrobianos PROA y control especial) solo se aplica a alertas de medicamentos. Un dispositivo con principio activo como componente (cemento óseo con gentamicina) ya no muestra `Vigilancia: GENTAMICINA`; su nivel sigue dependiendo del Listado Terapéutico (marca, producto, lote) y del laboratorio proveedor.
+
 ## [2.4.1] - 2026-10-30
 
 ### Cambiado

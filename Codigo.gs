@@ -777,9 +777,14 @@ function clasificar_(it, reglas) {
     var productos = porTermino[x];
     coincidencias.push(x + ": " + productos[0] + (productos.length > 1 ? " y " + (productos.length - 1) + " más" : ""));
   });
-  reglas.vigilancia.forEach(function(v) {
-    if (contieneTermino_(t, v.norm)) coincidencias.push("Vigilancia: " + v.texto);
-  });
+  // Vigilancia (antimicrobianos PROA y control especial) son medicamentos: solo aplica a la fuente MED.
+  // En un dispositivo (p. ej. cemento oseo con gentamicina) el principio activo es un componente, no un
+  // medicamento dispensado (observacion del referente, 30/10/2026).
+  if (it.fuente === "MED") {
+    reglas.vigilancia.forEach(function(v) {
+      if (contieneTermino_(t, v.norm)) coincidencias.push("Vigilancia: " + v.texto);
+    });
+  }
   reglas.ALTA.forEach(function(r) {
     if (contieneTermino_(t, r.norm)) coincidencias.push((r.motivo || "Regla") + ": " + r.texto);
   });

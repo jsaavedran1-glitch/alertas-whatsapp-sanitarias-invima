@@ -432,6 +432,17 @@ prueba("detalle de la alerta: tabla Producto, ficha, recomendacion para IPS y li
   assert.ok(msgDm.includes("\u{1F9FE} Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes"), msgDm);
 });
 
+prueba("Vigilancia (PROA/control especial) solo aplica a medicamentos, no a dispositivos", () => {
+  const { g, hojas } = entornoListo();
+  hojas.Vigilancia.getRange(3, 1, 1, 1).setValues([["Gentamicina"]]);
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const dm = g.clasificar_({ fuente: "DM", tipoCodigo: "IS", titulo: "Informe de seguridad sobre: Cementos óseos con gentamicina Heraeus PALACOS R+G" }, reglas);
+  assert.ok(!dm.coincidencia.includes("Vigilancia"), dm.coincidencia);
+  assert.strictEqual(dm.nivel, "ALTA", "sigue ALTA por la marca Palacos del Listado Terapeutico");
+  const med = g.clasificar_({ fuente: "MED", tipoCodigo: "AS", titulo: "Alerta sanitaria sobre: GENTAMICINA 80 mg/2 mL solución inyectable" }, reglas);
+  assert.strictEqual(med.coincidencia, "Vigilancia: Gentamicina");
+});
+
 prueba("el lote y el titular del detalle entran en la clasificacion", () => {
   const { g, hojas } = entornoListo();
   hojas.Listado_Terapeutico.getRange(3, 1, 1, 8).setValues([["MED-0001", "Daratumumab 120 mg/mL", "Daratumumab", "Darzalex", "MED", "", "PJS0C02", "JANSSEN"]]);

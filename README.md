@@ -90,7 +90,7 @@ flowchart TD
     style BAJA fill:#9e9e9e,color:#fff
 ```
 
-La coincidencia que justifica el nivel va en el mensaje (`🏥 Coincidencia HDV`), p. ej. `Lote F0537A dispensado en HDV`, `Vigilancia: GENTAMICINA` o `Uso frecuente: BUSCAPINA`.
+La coincidencia que justifica el nivel va en el mensaje (`🏥 Coincidencia HDV`), p. ej. `Lote F0537A dispensado en HDV`, `Vigilancia: GENTAMICINA` (solo en medicamentos) o `Uso frecuente: BUSCAPINA`.
 
 ### 4. Envío de una alerta al grupo
 
@@ -256,7 +256,7 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 - **La fecha del listado no es confiable** (alertas 2026 con fecha 2016-10-14): nunca se filtra por fecha.
 - **Página de detalle (sitio nuevo):** de cada alerta **nueva** (no en la carga inicial) el bot lee `/alertas-sanitarias/<slug>` y toma la tabla *Producto* (registro sanitario, titular, lote/serial), la ficha (`No. de identificación interno`, programa de vigilancia, categoría, fuente) y la sección *Recomendaciones para IPS, EAPB y profesionales de la salud* (se guarda; en el mensaje solo si `MOSTRAR_RECOMENDACION_IPS = true`). Lote/serial, titular y producto entran en la clasificación (un lote afectado que el HDV dispensó → 🔴 ALTA; un titular proveedor → 🟠 MEDIA). Si el detalle no responde, la alerta sale solo con los datos del listado. `LEER_DETALLE = false` lo desactiva. Análisis del sitio del 30/10/2026: no hay RSS, JSON ni API; las fotos del producto solo están en el PDF.
 - **Clasificación** (mayúsculas, sin tildes, por palabras completas, sobre el título y, si hay detalle, producto, lote/serial y titular):
-  - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Listado_Terapeutico` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia`, o con una regla ALTA (p. ej. una marca comercial de uso frecuente: `Uso frecuente: OZEMPIC`). La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
+  - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Listado_Terapeutico` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia` (solo alertas de medicamentos: en un dispositivo el principio activo es un componente, p. ej. cemento óseo con gentamicina), o con una regla ALTA (p. ej. una marca comercial de uso frecuente: `Uso frecuente: OZEMPIC`). La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
   - ⚪ **BAJA:** contiene un término BAJA y no tiene coincidencias ALTA.
   - 🟠 **MEDIA:** contiene un término MEDIA, es un informe de seguridad, o nombra un **laboratorio proveedor** del HDV (`Laboratorio proveedor HDV: GENFAR`).
   - ⚪ **BAJA:** el resto. También se envía (`ENVIAR_BAJA`), sin encuesta.
