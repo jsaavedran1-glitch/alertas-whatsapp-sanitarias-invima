@@ -83,6 +83,13 @@ const DETALLE_PALACOS = '<html><body><dl class="inv-det-datos"><div class="inv-d
   '<section class="inv-det-reco"><div class="inv-det-reco-titulo"><h4>Información para profesionales de la salud</h4></div><div class="inv-alerta-bloque inv-det-reco-texto"><p>1.Comuníquese con el importador.</p></div></section>' +
   '<section class="inv-det-reco"><div class="inv-det-reco-titulo"><h4>Recomendaciones para IPS, EAPB y profesionales de la salud</h4></div><div class="inv-alerta-bloque inv-det-reco-texto"><p>1. Comuníquese con el importador, distribuidor o comercializador para precisar si existen recomendaciones específicas para la utilización del producto y que le indique el plan de acción a seguir; en caso de no lograrlo, póngase en contacto con el Invima.</p><p>2. Reporte al Programa Nacional de Tecnovigilancia del Invima los eventos e incidentes asociados a la utilización del dispositivo médico.</p></div></section></div></body></html>';
 
+const DETALLE_DARZALEX = DETALLE_DIALUX
+  .replace("DIALUX</h1>", 'FALSIFICACIÓN DEL PRODUCTO DARZALEX® SC 120 MG/ML</h1><div class="inv-det-fecha"><svg></svg><span>Publicada el <span data-oe-type="date">30-10-2026</span></span></div>')
+  .replace('<div class="inv-det-recomendaciones">', '<h3 class="inv-alerta-seccion">Registro fotográfico</h3><p class="inv-det-galeria-nota">Imágenes del producto tal como se encontró. Pulse una para verla completa.</p>' +
+    '<div class="inv-det-galeria"><a href="/web/image/51234/IMAGEN%202%20DARZALEX.png" target="_blank"><img src="/web/image/51234/IMAGEN%202%20DARZALEX.png?width=300" alt=""/></a>' +
+    '<a href="/web/image/51235/IMAGEN%203%20DARZALEX.png"><img src="/web/image/51235/IMAGEN%203%20DARZALEX.png?width=300"/></a>' +
+    '<img src="/invima_alertas_sanitarias/static/src/img/direcciones/medicamentos.png"/></div><h3 class="inv-alerta-seccion">Recomendaciones</h3><div class="inv-det-recomendaciones">');
+
 const TARJETAS_ALI = [
   tarjeta({ dir: "da", numero: "360–2026", titulo: "Bebida energizante XYZ sin registro sanitario", slug: "bebida-xyz",
     fecha: "20-10-2026", clase: "Producto fraudulento", pdfId: "12960" })
@@ -226,6 +233,9 @@ function crearEntorno(opciones = {}) {
           }
           if ((estado.hostsCaidos || []).some((h) => url.indexOf(h) >= 0)) throw new Error("Exception: Error de DNS: " + url);
           enviados.push({ url, cuerpo: typeof opts.payload === "string" ? JSON.parse(opts.payload) : opts.payload, contentType: opts.contentType });
+          if (estado.falloUrl && url.indexOf("sendFileByUrl") >= 0) {
+            return { getResponseCode: () => estado.falloUrl, getContentText: () => "error" };
+          }
           if (estado.falloFoto && url.indexOf("sendFileByUpload") >= 0) {
             return { getResponseCode: () => estado.falloFoto, getContentText: () => "error" };
           }
@@ -325,7 +335,7 @@ prueba("sitio nuevo: dispositivos con informe de seguridad y estado; filtro por 
   assert.strictEqual(it[0].estadoDm, "En seguimiento");
   assert.strictEqual(it[0].clasificacion, "");
   assert.strictEqual(g.parsearListado_(PAGINA_NUEVA(TARJETAS_MED.concat(TARJETAS_DM)), "MED").length, 3, "MED ignora tarjetas dd");
-  assert.ok(g.formatearMensaje_(Object.assign(it[1], { nivel: "MEDIA" })).includes("\u{1F4C5} Publicada: 2026-10-13 · Producto defectuoso\n\u{1F194} Estado: En seguimiento"));
+  assert.ok(g.formatearMensaje_(Object.assign(it[1], { nivel: "MEDIA" })).includes("\u{1F4C5} Publicada: 13-10-2026 · Producto defectuoso\n\u{1F194} Estado: En seguimiento"));
 });
 
 prueba("sitio nuevo: paginas /page/N, migracion de Config_Fuentes y foto desde /pdf", () => {
@@ -441,6 +451,40 @@ prueba("Vigilancia (PROA/control especial) solo aplica a medicamentos, no a disp
   assert.strictEqual(dm.nivel, "ALTA", "sigue ALTA por la marca Palacos del Listado Terapeutico");
   const med = g.clasificar_({ fuente: "MED", tipoCodigo: "AS", titulo: "Alerta sanitaria sobre: GENTAMICINA 80 mg/2 mL solución inyectable" }, reglas);
   assert.strictEqual(med.coincidencia, "Vigilancia: Gentamicina");
+});
+
+prueba("registro fotografico del detalle: fotos de la pagina, fecha de publicacion y envio por URL antes que el PDF", () => {
+  const { g } = crearEntorno();
+  const it = g.aplicarDetalle_({ clave: "MED:AS:368-2026", fuente: "MED", tipoCodigo: "AS", numero: "368", anio: "2026", titulo: "DARZALEX",
+    fecha: "2026-10-29", nivel: "MEDIA", url: "https://www.invima.gov.co/alertas-sanitarias/13041/pdf" }, DETALLE_DARZALEX);
+  assert.strictEqual(JSON.stringify(it.fotos), JSON.stringify(["https://www.invima.gov.co/web/image/51234/IMAGEN%202%20DARZALEX.png",
+    "https://www.invima.gov.co/web/image/51235/IMAGEN%203%20DARZALEX.png"]), "sin miniaturas repetidas ni iconos");
+  assert.strictEqual(it.fecha, "2026-10-30", "la fecha del detalle manda");
+  assert.ok(g.formatearMensaje_(it).includes("\u{1F4C5} Publicada: 30-10-2026"), "fecha como la muestra INVIMA");
+  assert.strictEqual(g.aplicarDetalle_({ titulo: "x" }, DETALLE_DIALUX).fotos, undefined, "DIALUX no tiene galeria");
+  assert.strictEqual(g.nombreFoto_(it, it.fotos[0]), "MED_AS_368-2026.png");
+  // Envio real simulado por el mock: sendFileByUrl con la primera foto y el texto al pie; no descarga el PDF.
+  const e = entornoListo();
+  e.estado.detalles = { "https://www.invima.gov.co/alertas-sanitarias/darzalex": DETALLE_DARZALEX };
+  e.estado.paginas = { MED: [PAGINA_NUEVA([tarjeta({ numero: "368–2026", titulo: "FALSIFICACIÓN DEL PRODUCTO DARZALEX® SC 120 MG/ML, CON LOTE PJS0C02",
+    slug: "darzalex", fecha: "30-10-2026", clase: "Producto fraudulento", pdfId: "13041" })])], DM: [PAGINA_NUEVA(TARJETAS_DM)] };
+  e.g.cargaInicial(); // registra DM; MED 368 es de "hoy" en la tarjeta? no: 30-10-2026 fijo -> se registra. Lo quitamos para la revision.
+  e.hojas.Historico.d = e.hojas.Historico.d.filter((f) => f[0] !== "MED:AS:368-2026");
+  e.g.revisarAlertas();
+  const env = e.enviados.find((x) => x.url.includes("sendFileByUrl"));
+  assert.ok(env, "se envio por URL");
+  assert.strictEqual(env.cuerpo.urlFile, "https://www.invima.gov.co/web/image/51234/IMAGEN%202%20DARZALEX.png");
+  assert.strictEqual(env.cuerpo.fileName, "MED_AS_368-2026.png");
+  assert.ok(env.cuerpo.caption.includes("*Alerta sanitaria No. 368-2026*") && env.cuerpo.caption.includes("Publicada: 30-10-2026"));
+  assert.strictEqual(env.contentType, "application/json", "sendFileByUrl va como JSON al servidor de la API");
+  assert.ok(!e.urlsInvima.some((u) => u.endsWith("/13041/pdf")), "no descargo el PDF");
+  // Si la URL falla (no 466), cae al PDF y luego al texto.
+  const e2 = entornoListo();
+  e2.estado.detalles = e.estado.detalles; e2.estado.paginas = e.estado.paginas; e2.estado.falloUrl = 400;
+  e2.g.cargaInicial(); e2.hojas.Historico.d = e2.hojas.Historico.d.filter((f) => f[0] !== "MED:AS:368-2026");
+  e2.g.revisarAlertas();
+  assert.strictEqual(JSON.stringify(e2.enviados.filter((x) => String(x.cuerpo.caption || x.cuerpo.message || "").includes("368-2026")).map((x) => x.url.split("/")[4])),
+    JSON.stringify(["sendFileByUrl", "sendMessage"]));
 });
 
 prueba("el lote y el titular del detalle entran en la clasificacion", () => {
@@ -627,7 +671,7 @@ prueba("formato del mensaje inmediato", () => {
     "*Informe de seguridad No. 149-2026*",
     "",
     "\u{1F4CC} Cementos óseos con gentamicina Heraeus® Cemento óseo radiopaco a base de PMMA PALACOS® R+G...",
-    "\u{1F4C5} Publicada: 2026-10-19"
+    "\u{1F4C5} Publicada: 19-10-2026"
   ]);
   assert.strictEqual(lineas[5], "\u{1F194} ID INVIMA: DI2609-00541 · Estado: SEGUIMIENTO");
   assert.strictEqual(lineas[7], "\u{1F3E5} *Coincidencia HDV:*");
@@ -641,7 +685,7 @@ prueba("fecha del listado no confiable -> se muestra la fecha de deteccion", () 
   const reglas = g.cargarReglas_(g.abrirHoja_());
   const it = g.clasificar_(g.parsearListado_(ENVOLTURA(MED_FILAS), "MED")[0], reglas); // fecha 2016-10-14, alerta 2026
   it.fechaDeteccion = new Date(2026, 9, 20);
-  assert.ok(g.formatearMensaje_(it).includes("\u{1F4C5} Detectada: 2026-10-20"));
+  assert.ok(g.formatearMensaje_(it).includes("\u{1F4C5} Detectada: 20-10-2026"));
 });
 
 prueba("probarSinEnviar no envia ni escribe en Historico", () => {

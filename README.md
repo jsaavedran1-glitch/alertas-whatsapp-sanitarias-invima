@@ -128,7 +128,7 @@ Mensaje que llega al grupo:
 *Alerta sanitaria No. 329-2026*
 
 📌 FALSIFICACIÓN DEL PRODUCTO BUSCAPINA® COMPOSITUM NF ... LOTE F0537A
-📅 Detectada: 2026-10-20
+📅 Detectada: 20-10-2026
 
 🏥 *Coincidencia HDV:*
 • BUSCAPINA COMPOSITUM: HIOSCINA+DIPIRONA 2.5G+20MG 5ML AMP (...)
@@ -268,8 +268,8 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 - **Envío:** todas las alertas nuevas (🔴 ALTA, 🟠 MEDIA y ⚪ BAJA) en la revisión en que se detectan, ALTA primero, 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. Solo se envía lo que no estaba en `Historico`: lo que INVIMA publicó desde la revisión anterior. Decisión del referente del 22/10/2026; con `ENVIAR_BAJA = false` las BAJA vuelven a quedar solo para el resumen del lunes. La encuesta va solo después de ALTA y MEDIA (`ENCUESTA_EN_BAJA`).
 - **Contacto para dudas:** cada alerta termina con `❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408` (`CONTACTO_DUDAS`): el enlace abre el chat del QF, sin envío ni consumo de cuota.
 - **Listado ilegible** (HTTP ≠ 200 o 0 ítems en la primera página; el `Log` guarda título y texto de la página recibida): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
-- **Foto del producto (solo MED):** cada alerta individual de medicamentos se envía como la foto del producto extraída del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si el PDF no descarga, no trae foto, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. DM siempre como texto: sus PDF solo traen las imágenes de la plantilla (diagnóstico del 20/10/2026: MED 39 de 40 con foto, DM 0 de 26). Se desactiva con `FOTO_EN_ALERTAS = false`.
-- **GREEN-API:** solo `sendMessage`, `sendFileByUpload` y `sendPoll` a `GA_CHAT_ID`, y `lastIncomingMessages` (lectura) en `buscarIdGrupo()`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
+- **Foto del producto:** si la página de detalle trae *Registro fotográfico* (imágenes PNG del sitio, cualquier categoría), la alerta se envía con la primera imagen y el texto al pie (`sendFileByUrl`: GREEN-API la toma de la URL de INVIMA). Si no hay galería, en medicamentos se intenta la foto JPEG del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si no hay galería ni foto en el PDF, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. Los PDF del sitio nuevo (30/10/2026) guardan las fotos del producto en PNG, que el bot no puede extraer; por eso la galería de la página es la fuente principal. Se desactiva con `FOTO_EN_ALERTAS = false`.
+- **GREEN-API:** solo `sendMessage`, `sendFileByUrl`, `sendFileByUpload` y `sendPoll` a `GA_CHAT_ID`, y `lastIncomingMessages` (lectura) en `buscarIdGrupo()`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
 
 ## Formato del mensaje
 
@@ -280,7 +280,7 @@ Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (genera
 *Informe de seguridad No. 149-2026*
 
 📌 Cementos óseos con gentamicina Heraeus® ... PALACOS® R+G...
-📅 Publicada: 2026-10-19
+📅 Publicada: 19-10-2026
 🆔 ID INVIMA: DI2609-00541 · Estado: En seguimiento
 🧾 Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes   (tal como aparece en la página de INVIMA; los valores vacíos no se muestran)
 
@@ -297,7 +297,7 @@ _Desarrollado por el QF Juan Pablo Saavedra_
 
 - Categorías con el nombre oficial de INVIMA: `💊 Medicamentos y productos biológicos`, `🩺 Dispositivos médicos y otras tecnologías`, `🍽️ Alimentos y bebidas`, `🧴 Cosméticos, aseo y plaguicidas`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
 - El título se muestra sin "Alerta sanitaria sobre:" (ya va en el encabezado).
-- Si el año de la fecha del listado no coincide con el de la alerta (fechas erradas de INVIMA), se muestra `📅 Detectada: <fecha>` en lugar de `Publicada`.
+- La fecha se muestra como la publica INVIMA (`dd-mm-aaaa`), tomada de la página de detalle (*Publicada el …*) o, si no, del listado. Si el año no coincide con el de la alerta, se muestra `📅 Detectada: <fecha>`.
 - Con `MOSTRAR_RECOMENDACION_IPS = true` se agrega `🩺 Recomendación INVIMA para IPS y profesionales` (≤ 350 caracteres); si con ella el texto no cabe como pie de foto, la alerta de medicamentos sale con la foto y sin la recomendación.
 - El resumen semanal y el mensaje agrupado siguen el mismo estilo.
 

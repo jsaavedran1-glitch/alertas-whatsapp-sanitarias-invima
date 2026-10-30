@@ -2,6 +2,14 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.5.0] - 2026-10-30
+
+### Agregado
+- Foto desde el *Registro fotográfico* de la página de detalle (imágenes PNG del sitio), para cualquier categoría: se envía la primera con el texto al pie (`sendFileByUrl`). Orden: galería → JPEG del PDF (MED) → texto. Motivo: los PDF del sitio nuevo guardan las fotos en PNG (alerta 368-2026 DARZALEX: 4 fotos PNG, solo franjas en JPEG) y el bot no puede extraerlas.
+
+### Cambiado
+- Fecha en formato INVIMA (`Publicada: 30-10-2026`), tomada de la página de detalle cuando existe.
+
 ## [2.4.4] - 2026-10-30
 
 ### Corregido

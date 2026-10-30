@@ -623,6 +623,23 @@ function aplicarDetalle_(it, html) {
   if (datos["PROGRAMA DE VIGILANCIA"]) it.programa = datos["PROGRAMA DE VIGILANCIA"];
   if (datos["CATEGORIA"]) it.categoria = datos["CATEGORIA"];
   if (datos["FUENTE"]) it.fuenteInfo = datos["FUENTE"];
+  // "Registro fotografico": imagenes del producto publicadas en el sitio (PNG), entre ese titulo y la
+  // seccion siguiente. Se prefieren los enlaces (imagen completa) a las miniaturas.
+  var gal = html.match(/Registro fotogr[aá]fico[\s\S]*?(?=<h3|<section class="inv-det-reco"|Recomendaciones<|$)/i);
+  if (gal) {
+    var fotos = [], vistas = {}, reImg = /(?:href|src)="([^"]+)"/g, mi;
+    while ((mi = reImg.exec(gal[0])) !== null) {
+      var u = mi[1];
+      if (!/\.(png|jpe?g|webp)(\?|$)|\/web\/image\//i.test(u) || /\/static\/|icono|logo/i.test(u)) continue;
+      var base = u.split("?")[0];
+      if (vistas[base]) continue;
+      vistas[base] = true;
+      fotos.push(urlAbsoluta_(base));
+    }
+    if (fotos.length > 0) it.fotos = fotos;
+  }
+  var pub = html.match(/Publicada el\s*(?:<[^>]+>\s*)*(\d{1,2})-(\d{1,2})-(\d{4})/i);
+  if (pub) it.fecha = pub[3] + "-" + ("0" + pub[2]).slice(-2) + "-" + ("0" + pub[1]).slice(-2);
   var secciones = html.split(/<section class="inv-det-reco">/).slice(1);
   var ips = secciones.filter(function(sec) { return /<h4>[^<]*\bIPS\b/i.test(sec); })[0];
   if (ips) {
@@ -886,8 +903,14 @@ function tituloCorto_(titulo) {
 function lineaFecha_(it) {
   var anioFecha = String(it.fecha || "").slice(0, 4);
   var extra = it.clasificacion ? " · " + it.clasificacion : "";
-  if (it.fecha && (!it.anio || anioFecha === String(it.anio))) return emoji_(E.FECHA) + " Publicada: " + it.fecha + extra;
-  return emoji_(E.FECHA) + " Detectada: " + Utilities.formatDate(it.fechaDeteccion || new Date(), TZ, "yyyy-MM-dd") + extra;
+  if (it.fecha && (!it.anio || anioFecha === String(it.anio))) return emoji_(E.FECHA) + " Publicada: " + fechaInvima_(it.fecha) + extra;
+  return emoji_(E.FECHA) + " Detectada: " + Utilities.formatDate(it.fechaDeteccion || new Date(), TZ, "dd-MM-yyyy") + extra;
+}
+
+// aaaa-mm-dd -> dd-mm-aaaa, como la muestra INVIMA ("Publicada el 30-10-2026").
+function fechaInvima_(f) {
+  var m = String(f || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + "-" + m[2] + "-" + m[1] : String(f || "");
 }
 
 function firma_() {
@@ -972,7 +995,21 @@ function enviarAlerta_(mensaje, it, enviarReal) {
     var corto = formatearMensaje_(it, true);
     if (corto.length <= MAX_CARACTERES_PIE) mensaje = corto;
   }
-  var foto = (mensaje.length <= MAX_CARACTERES_PIE) ? fotoProducto_(it) : null;
+  if (mensaje.length > MAX_CARACTERES_PIE) return enviarWhatsApp_(mensaje, enviarReal);
+  // 1) Foto del "Registro fotografico" de la pagina de INVIMA (cualquier fuente): GREEN-API la toma de la URL.
+  if (FOTO_EN_ALERTAS && it.fotos && it.fotos.length > 0) {
+    if (!enviarReal) {
+      Logger.log("[SIMULADO - foto de la pagina INVIMA %s, texto al pie]\n%s", it.fotos[0], mensaje);
+      return { ok: true, simulado: true, foto: true };
+    }
+    var rg = llamarGreenApi_("sendFileByUrl", { urlFile: it.fotos[0], fileName: nombreFoto_(it, it.fotos[0]), caption: mensaje });
+    if (rg.ok) { rg.foto = true; return rg; }
+    if (rg.cuota) return rg;
+    Logger.log("[%s] Foto de la pagina no enviada (%s); se intenta el PDF.", it.clave, rg.error || "");
+    Utilities.sleep(ESPERA_MENSAJES_MS);
+  }
+  // 2) Foto JPEG del PDF (solo fuentes con foto en el PDF).
+  var foto = fotoProducto_(it);
   if (!foto) return enviarWhatsApp_(mensaje, enviarReal);
   if (!enviarReal) {
     Logger.log("[SIMULADO - foto %s KB %sx%s, texto al pie]\n%s", foto.kb, foto.ancho, foto.alto, mensaje);
@@ -1035,8 +1072,9 @@ function fotoProducto_(it) {
   }
 }
 
-function nombreFoto_(it) {
-  return String(it.clave).replace(/[^A-Za-z0-9-]+/g, "_") + ".jpg";
+function nombreFoto_(it, url) {
+  var ext = (String(url || "").match(/\.(png|jpe?g|webp)$/i) || [0, "jpg"])[1].toLowerCase();
+  return String(it.clave).replace(/[^A-Za-z0-9-]+/g, "_") + "." + ext;
 }
 
 // Unica salida hacia GREEN-API: siempre al GA_CHAT_ID (grupo), maneja el 466 sin reintentar.
