@@ -45,6 +45,9 @@ var ESPERA_DETALLE_MS = 700;     // entre paginas de detalle de alertas nuevas
 // titular, lote/serial, ID interno, programa y recomendaciones para IPS. Solo HTML; el PDF no se lee.
 var LEER_DETALLE = true;
 var MAX_RECOMENDACION = 350;     // caracteres de la recomendacion para IPS en el mensaje
+// El referente prefiere el mensaje corto: solo la ficha del producto (registro sanitario, lote/serial,
+// titular). La recomendacion para IPS se lee y se puede mostrar con true.
+var MOSTRAR_RECOMENDACION_IPS = false;
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
 var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coincidencias espurias con nombres cortos
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
@@ -893,7 +896,6 @@ function formatearMensaje_(it, sinRecomendacion) {
   var id = [];
   if (it.idDm) id.push("ID INVIMA: " + it.idDm);
   if (it.estadoDm) id.push("Estado: " + it.estadoDm);
-  if (it.programa) id.push("Programa: " + it.programa);
   if (id.length > 0) lineas.push(emoji_(E.ID) + " " + id.join(" · "));
   var ficha = [];
   if (valorDetalle_(it.registroSanitario)) ficha.push("Registro sanitario: " + it.registroSanitario);
@@ -904,7 +906,7 @@ function formatearMensaje_(it, sinRecomendacion) {
     lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
     it.coincidencia.split("; ").forEach(function(c) { lineas.push("• " + c); });
   }
-  if (it.recomendacionIps && !sinRecomendacion) {
+  if (it.recomendacionIps && MOSTRAR_RECOMENDACION_IPS && !sinRecomendacion) {
     lineas.push("", emoji_(E.IPS) + " *Recomendación INVIMA para IPS y profesionales:*", it.recomendacionIps);
   }
   lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, lineaContacto_(), "", firma_());
@@ -945,7 +947,7 @@ function enviarWhatsApp_(mensaje, enviarReal) {
 // foto falla por otra causa que no sea el 466, se envia como texto. Cuenta como un solo mensaje.
 function enviarAlerta_(mensaje, it, enviarReal) {
   // Si el texto completo no cabe como pie de foto, se prefiere la foto sin la recomendacion para IPS.
-  if (mensaje.length > MAX_CARACTERES_PIE && it.recomendacionIps && FUENTES_CON_FOTO.indexOf(it.fuente) >= 0) {
+  if (mensaje.length > MAX_CARACTERES_PIE && it.recomendacionIps && MOSTRAR_RECOMENDACION_IPS && FUENTES_CON_FOTO.indexOf(it.fuente) >= 0) {
     var corto = formatearMensaje_(it, true);
     if (corto.length <= MAX_CARACTERES_PIE) mensaje = corto;
   }

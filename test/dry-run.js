@@ -417,14 +417,18 @@ prueba("detalle de la alerta: tabla Producto, ficha, recomendacion para IPS y li
   const msg = g.formatearMensaje_(it);
   assert.ok(msg.includes("\n\u{1F194} ID INVIMA: MA2610-195\n\u{1F9FE} Registro sanitario: Sin registro sanitario\n"), msg);
   assert.ok(!msg.includes("Titular") && !msg.includes("Lote/Serial"), "los valores — no se muestran");
-  assert.ok(msg.includes("\u{1FA7A} *Recomendación INVIMA para IPS y profesionales:*\nEn el evento"), msg);
+  assert.ok(!msg.includes("Recomendación INVIMA"), "por defecto el mensaje no lleva la recomendacion");
+  g.MOSTRAR_RECOMENDACION_IPS = true;
+  assert.ok(g.formatearMensaje_(it).includes("\u{1FA7A} *Recomendación INVIMA para IPS y profesionales:*\nEn el evento"));
   assert.ok(!g.formatearMensaje_(it, true).includes("Recomendación INVIMA"), "version corta sin recomendacion");
+  g.MOSTRAR_RECOMENDACION_IPS = false;
   const dm = g.aplicarDetalle_({ fuente: "DM", tipoCodigo: "IS", numero: "149", anio: "2026", titulo: "Cementos óseos", estadoDm: "En seguimiento", nivel: "ALTA", url: "u" }, DETALLE_PALACOS);
   assert.strictEqual(dm.programa, "Tecnovigilancia");
   assert.strictEqual(dm.registroSanitario, "2020DM-0003812-R1");
   assert.strictEqual(dm.loteSerial, "Todos los lotes");
   const msgDm = g.formatearMensaje_(dm);
-  assert.ok(msgDm.includes("\u{1F194} ID INVIMA: DI2609-00541 · Estado: En seguimiento · Programa: Tecnovigilancia"), msgDm);
+  assert.ok(msgDm.includes("\u{1F194} ID INVIMA: DI2609-00541 · Estado: En seguimiento\n"), msgDm);
+  assert.ok(!msgDm.includes("Programa:"), "el programa de vigilancia no va en el mensaje");
   assert.ok(msgDm.includes("\u{1F9FE} Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes"), msgDm);
 });
 
@@ -906,6 +910,7 @@ prueba("si el texto con recomendacion no cabe como pie de foto, va la foto con l
     fecha: "21-10-2026", clase: "Retiro de producto", pdfId: "12950" })])], DM: [ENVOLTURA([])] };
   e.estado.pdfs = { "https://www.invima.gov.co/alertas-sanitarias/12950/pdf": pdfConFoto() };
   e.g.MAX_CARACTERES_PIE = 900;
+  e.g.MOSTRAR_RECOMENDACION_IPS = true;
   e.g.revisarAlertas();
   const foto = e.enviados.find((x) => x.url.includes("sendFileByUpload"));
   assert.ok(foto, "se envio con foto");

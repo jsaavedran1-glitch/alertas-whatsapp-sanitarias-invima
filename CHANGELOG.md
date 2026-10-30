@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.4.1] - 2026-10-30
+
+### Cambiado
+- Mensaje más corto, a pedido del referente: de la página de detalle solo se muestra `🧾 Registro sanitario · Lote/Serial · Titular`, tal como aparece en INVIMA. La recomendación para IPS y el programa de vigilancia se guardan pero no se envían (`MOSTRAR_RECOMENDACION_IPS = false`).
+
 ## [2.4.0] - 2026-10-30
 
 ### Agregado
