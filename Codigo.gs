@@ -1072,8 +1072,10 @@ function fotoProducto_(it) {
   }
 }
 
+// Las imagenes del sitio de INVIMA (/web/image/<id>) son PNG y su URL no trae extension.
 function nombreFoto_(it, url) {
-  var ext = (String(url || "").match(/\.(png|jpe?g|webp)$/i) || [0, "jpg"])[1].toLowerCase();
+  var m = String(url || "").match(/\.(png|jpe?g|webp)$/i);
+  var ext = m ? m[1].toLowerCase() : (/\/web\/image\//.test(String(url || "")) ? "png" : "jpg");
   return String(it.clave).replace(/[^A-Za-z0-9-]+/g, "_") + "." + ext;
 }
 

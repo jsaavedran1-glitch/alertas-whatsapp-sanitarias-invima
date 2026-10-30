@@ -463,6 +463,8 @@ prueba("registro fotografico del detalle: fotos de la pagina, fecha de publicaci
   assert.ok(g.formatearMensaje_(it).includes("\u{1F4C5} Publicada: 30-10-2026"), "fecha como la muestra INVIMA");
   assert.strictEqual(g.aplicarDetalle_({ titulo: "x" }, DETALLE_DIALUX).fotos, undefined, "DIALUX no tiene galeria");
   assert.strictEqual(g.nombreFoto_(it, it.fotos[0]), "MED_AS_368-2026.png");
+  assert.strictEqual(g.nombreFoto_(it, "https://www.invima.gov.co/web/image/453164"), "MED_AS_368-2026.png", "sin extension en la URL: PNG");
+  assert.strictEqual(g.nombreFoto_(it), "MED_AS_368-2026.jpg", "foto del PDF: JPEG");
   // Envio real simulado por el mock: sendFileByUrl con la primera foto y el texto al pie; no descarga el PDF.
   const e = entornoListo();
   e.estado.detalles = { "https://www.invima.gov.co/alertas-sanitarias/darzalex": DETALLE_DARZALEX };
