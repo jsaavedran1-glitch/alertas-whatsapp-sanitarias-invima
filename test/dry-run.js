@@ -382,8 +382,8 @@ prueba("fuentes ALI y COS: direccion da/dc, etiqueta propia y carga inicial por 
   assert.strictEqual(g.etiquetaFuente_("COS"), "\u{1F9F4} Cosméticos, aseo y plaguicidas");
   // Hoja real: ALI y COS agregadas despues, aun inactivas. cargaInicialFuente las carga sin tocar MED/DM.
   hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["NO"], ["NO"]]);
-  g.cargaInicialFuente("ALI");
-  g.cargaInicialFuente("COS");
+  g.cargaInicialAlimentos();
+  g.cargaInicialCosmeticos();
   const filas = hojas.Historico.filas();
   assert.strictEqual(JSON.stringify(filas.map((f) => f.clave)), JSON.stringify(["ALI:AS:360-2026", "COS:AS:361-2026"]));
   assert.ok(filas.every((f) => f.enviado === "CARGA_INICIAL"));

@@ -171,6 +171,10 @@ function cargaInicialFuente(fuente, paginas) {
   return ejecutar_({ nombre: "CARGA", enviar: false, persistir: true, paginas: n, soloFuente: f });
 }
 
+// Atajos sin parametros para el selector del editor (ver cargaInicialFuente).
+function cargaInicialAlimentos() { return cargaInicialFuente("ALI"); }
+function cargaInicialCosmeticos() { return cargaInicialFuente("COS"); }
+
 // Funcion principal (disparador cada 4 horas entre 6:00 y 20:00).
 function revisarAlertas() {
   return ejecutar_({ nombre: "REVISION", enviar: true, persistir: true, paginas: MAX_PAGINAS_REVISION });
