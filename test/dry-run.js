@@ -378,8 +378,8 @@ prueba("fuentes ALI y COS: direccion da/dc, etiqueta propia y carga inicial por 
   assert.strictEqual(hojas.Config_Fuentes.d[3][1], "https://www.invima.gov.co/alertas-sanitarias?direccion=da");
   const ali = g.parsearListado_(PAGINA_NUEVA(TARJETAS_ALI.concat(TARJETAS_COS)), "ALI");
   assert.strictEqual(JSON.stringify(ali.map((x) => x.clave)), JSON.stringify(["ALI:AS:360-2026"]), "ALI ignora tarjetas dc");
-  assert.strictEqual(g.etiquetaFuente_("ALI"), "\u{1F37D}\uFE0F Alimento y bebida");
-  assert.strictEqual(g.etiquetaFuente_("COS"), "\u{1F9F4} Cosmético, aseo y plaguicida");
+  assert.strictEqual(g.etiquetaFuente_("ALI"), "\u{1F37D}\uFE0F Alimentos y bebidas");
+  assert.strictEqual(g.etiquetaFuente_("COS"), "\u{1F9F4} Cosméticos, aseo y plaguicidas");
   // Hoja real: ALI y COS agregadas despues, aun inactivas. cargaInicialFuente las carga sin tocar MED/DM.
   hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["NO"], ["NO"]]);
   g.cargaInicialFuente("ALI");
@@ -397,7 +397,7 @@ prueba("fuentes ALI y COS: direccion da/dc, etiqueta propia y carga inicial por 
   g.revisarAlertas();
   const alerta = enviados.filter((e) => String(e.cuerpo.message || "").startsWith("[INVIMA-ALI]"));
   assert.strictEqual(alerta.length, 1);
-  assert.ok(alerta[0].cuerpo.message.includes("*Alerta sanitaria No. 362-2026*") && alerta[0].cuerpo.message.includes("Alimento y bebida"));
+  assert.ok(alerta[0].cuerpo.message.includes("*Alerta sanitaria No. 362-2026*") && alerta[0].cuerpo.message.includes("Alimentos y bebidas"));
   assert.ok(!enviados.some((e) => String(e.cuerpo.message || "").includes("360-2026")), "lo de la carga inicial no se envia");
 });
 
@@ -605,7 +605,7 @@ prueba("formato del mensaje inmediato", () => {
   const it = g.clasificar_(g.parsearListado_(ENVOLTURA(DM_FILAS), "DM")[1], reglas);
   const lineas = g.formatearMensaje_(it).split("\n");
   assert.deepStrictEqual(lineas.slice(0, 5), [
-    "[INVIMA-DM] \u{1F534} *PRIORIDAD ALTA* · \u{1FA7A} Dispositivo médico",
+    "[INVIMA-DM] \u{1F534} *PRIORIDAD ALTA* · \u{1FA7A} Dispositivos médicos y otras tecnologías",
     "*Informe de seguridad No. 149-2026*",
     "",
     "\u{1F4CC} Cementos óseos con gentamicina Heraeus® Cemento óseo radiopaco a base de PMMA PALACOS® R+G...",
@@ -658,7 +658,7 @@ prueba("revisarAlertas envia todas las alertas nuevas (ALTA primero, tambien BAJ
   g.revisarAlertas();
   assert.strictEqual(enviados.length, 2, "ALTA y BAJA, sin encuesta (desactivada en este entorno)");
   assert.ok(enviados.every((e) => e.cuerpo.chatId === "120363412506101174@g.us"));
-  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamento\n*Alerta sanitaria No. 331-2026*"), "ALTA primero");
+  assert.ok(enviados[0].cuerpo.message.startsWith("[INVIMA-MED] \u{1F534} *PRIORIDAD ALTA* · \u{1F48A} Medicamentos y productos biológicos\n*Alerta sanitaria No. 331-2026*"), "ALTA primero");
   assert.ok(enviados[0].cuerpo.message.includes("*Coincidencia HDV:*\n• Vigilancia: Butilbromuro de hioscina"));
   assert.ok(enviados[0].cuerpo.message.includes("\u2753 Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408\n\n_Bot Alertas INVIMA"));
   assert.ok(enviados[1].cuerpo.message.startsWith("[INVIMA-MED] ⚪ *PRIORIDAD BAJA*"));
@@ -670,7 +670,7 @@ prueba("revisarAlertas envia todas las alertas nuevas (ALTA primero, tambien BAJ
   assert.strictEqual(enviados.length, 2, "ninguna clave se envia dos veces");
   const resumen = g.resumenSemanal();
   assert.strictEqual(enviados.length, 3);
-  assert.ok(resumen.includes("\u{1F48A} Medicamento: \u{1F534} 1 · \u{1F7E0} 0 · ⚪ 1"));
+  assert.ok(resumen.includes("\u{1F48A} Medicamentos y productos biológicos: \u{1F534} 1 · \u{1F7E0} 0 · ⚪ 1"));
   assert.ok(!resumen.includes("PRODUCTO HOMEOPÁTICO X"), "la BAJA ya enviada no se repite en el resumen");
   assert.ok(!resumen.includes("ETHIOPIAN"), "la carga inicial no entra al resumen");
 });

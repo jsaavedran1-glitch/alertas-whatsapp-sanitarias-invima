@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.4.3] - 2026-10-30
+
+### Cambiado
+- Etiquetas de categoría con el nombre oficial de INVIMA: "Medicamentos y productos biológicos", "Dispositivos médicos y otras tecnologías", "Alimentos y bebidas", "Cosméticos, aseo y plaguicidas" (en alertas, mensaje agrupado y resumen semanal).
+
 ## [2.4.2] - 2026-10-30
 
 ### Corregido

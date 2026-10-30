@@ -124,7 +124,7 @@ Mensaje que llega al grupo:
 
 ```
 [foto del producto, solo MED]
-[INVIMA-MED] 🔴 *PRIORIDAD ALTA* · 💊 Medicamento
+[INVIMA-MED] 🔴 *PRIORIDAD ALTA* · 💊 Medicamentos y productos biológicos
 *Alerta sanitaria No. 329-2026*
 
 📌 FALSIFICACIÓN DEL PRODUCTO BUSCAPINA® COMPOSITUM NF ... LOTE F0537A
@@ -276,7 +276,7 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (generados con `String.fromCodePoint`).
 
 ```
-[INVIMA-DM] 🔴 *PRIORIDAD ALTA* · 🩺 Dispositivo médico
+[INVIMA-DM] 🔴 *PRIORIDAD ALTA* · 🩺 Dispositivos médicos y otras tecnologías
 *Informe de seguridad No. 149-2026*
 
 📌 Cementos óseos con gentamicina Heraeus® ... PALACOS® R+G...
@@ -295,7 +295,7 @@ _Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéuti
 _Desarrollado por el QF Juan Pablo Saavedra_
 ```
 
-- Medicamentos: `💊 Medicamento`; dispositivos: `🩺 Dispositivo médico`; alimentos: `🍽️ Alimento y bebida`; cosméticos: `🧴 Cosmético, aseo y plaguicida`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
+- Categorías con el nombre oficial de INVIMA: `💊 Medicamentos y productos biológicos`, `🩺 Dispositivos médicos y otras tecnologías`, `🍽️ Alimentos y bebidas`, `🧴 Cosméticos, aseo y plaguicidas`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
 - El título se muestra sin "Alerta sanitaria sobre:" (ya va en el encabezado).
 - Si el año de la fecha del listado no coincide con el de la alerta (fechas erradas de INVIMA), se muestra `📅 Detectada: <fecha>` en lugar de `Publicada`.
 - Con `MOSTRAR_RECOMENDACION_IPS = true` se agrega `🩺 Recomendación INVIMA para IPS y profesionales` (≤ 350 caracteres); si con ella el texto no cabe como pie de foto, la alerta de medicamentos sale con la foto y sin la recomendación.

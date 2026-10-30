@@ -848,10 +848,11 @@ function emojiNivel_(nivel) {
 }
 
 function etiquetaFuente_(fuente) {
-  if (fuente === "MED") return emoji_(E.MED) + " Medicamento";
-  if (fuente === "DM") return emoji_(E.DM) + " Dispositivo médico";
-  if (fuente === "ALI") return emoji_(E.ALI) + String.fromCodePoint(0xFE0F) + " Alimento y bebida";
-  if (fuente === "COS") return emoji_(E.COS) + " Cosmético, aseo y plaguicida";
+  // Nombres oficiales de las direcciones de INVIMA.
+  if (fuente === "MED") return emoji_(E.MED) + " Medicamentos y productos biológicos";
+  if (fuente === "DM") return emoji_(E.DM) + " Dispositivos médicos y otras tecnologías";
+  if (fuente === "ALI") return emoji_(E.ALI) + String.fromCodePoint(0xFE0F) + " Alimentos y bebidas";
+  if (fuente === "COS") return emoji_(E.COS) + " Cosméticos, aseo y plaguicidas";
   return fuente;
 }
 
