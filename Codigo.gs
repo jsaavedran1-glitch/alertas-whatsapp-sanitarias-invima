@@ -63,9 +63,9 @@ var COL_ENVIADO = 12; // columna "enviado" en Historico
 
 // Fuentes por defecto. En operacion se leen de la pestana Config_Fuentes.
 // Sitio nuevo (Odoo, 22/10/2026): un solo listado filtrado por direccion: da alimentos,
-// dm medicamentos, dd dispositivos medicos, dc cosmeticos. ALI y COS se agregaron el 30/10/2026
-// (pedido del referente); en una hoja ya creada hay que anadir sus filas a Config_Fuentes y correr
-// cargaInicialFuente("ALI") / ("COS") antes de activarlas.
+// dm medicamentos, dd dispositivos medicos, dc cosmeticos. ALI se agrego el 30/10/2026 (pedido del
+// referente); COS esta definida pero inactiva (no aplica al HDV). En una hoja ya creada hay que anadir
+// las filas a Config_Fuentes y correr cargaInicialFuente(...) antes de activar una fuente.
 var FUENTES_DEFECTO = [
   { fuente: "MED", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dm" },
   { fuente: "DM", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dd" },
@@ -100,7 +100,8 @@ var ENCABEZADOS = {
 };
 
 var PRECARGA = {
-  Config_Fuentes: FUENTES_DEFECTO.map(function(f) { return [f.fuente, f.url, "SI"]; }),
+  // COS (cosmeticos, aseo y plaguicidas) queda inactiva: no aplica al HDV (referente, 30/10/2026).
+  Config_Fuentes: FUENTES_DEFECTO.map(function(f) { return [f.fuente, f.url, f.fuente === "COS" ? "NO" : "SI"]; }),
   Reglas: [
     ["FALSIFICACIÓN", "MEDIA", ""], ["FALSIFICADO", "MEDIA", ""], ["FRAUDULENTO", "MEDIA", ""], ["LOTE", "MEDIA", ""],
     ["RETIRO", "MEDIA", ""], ["RECALL", "MEDIA", ""], ["CALIDAD", "MEDIA", ""], ["CONTAMINACIÓN", "MEDIA", ""],

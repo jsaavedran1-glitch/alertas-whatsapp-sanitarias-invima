@@ -515,8 +515,9 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
 function entornoListo(opciones) {
   const e = crearEntorno(opciones);
   e.g.inicializarHoja();
-  // Como en la hoja real: ALI y COS quedan inactivas hasta que el referente las active.
-  e.hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["NO"], ["NO"]]);
+  // Como en la hoja real: ALI inactiva hasta su carga inicial; COS inactiva (no aplica al HDV).
+  e.hojas.Config_Fuentes.getRange(4, 3, 1, 1).setValues([["NO"]]);
+  assert.strictEqual(e.hojas.Config_Fuentes.d[4][2], "NO", "COS precargada inactiva");
   e.hojas.Listado_Terapeutico.getRange(2, 1, 1, 5).setValues([["DM-0457", "Cemento óseo con gentamicina", "Gentamicina", "Palacos", "DM"]]);
   e.hojas.Vigilancia.getRange(2, 1, 1, 1).setValues([["Butilbromuro de hioscina"]]);
   return e;

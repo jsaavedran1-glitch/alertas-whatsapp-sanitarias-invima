@@ -232,7 +232,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 
 | Pestaña | Columnas | Quién la llena |
 |---|---|---|
-| `Config_Fuentes` | fuente, url, activa | Precargada: MED, DM, ALI (alimentos y bebidas, `?direccion=da`) y COS (cosméticos, aseo y plaguicidas, `?direccion=dc`). En una hoja anterior al 30/10/2026 hay que añadir las filas de ALI y COS a mano. Editable (`activa` = `NO` desactiva). |
+| `Config_Fuentes` | fuente, url, activa | Precargada: MED, DM y ALI (alimentos y bebidas, `?direccion=da`) activas; COS (cosméticos, aseo y plaguicidas, `?direccion=dc`) definida pero `activa` = `NO` porque no aplica al HDV. Editable. |
 | `Historico` | clave, fuente, numero, anio, titulo, tipo, fecha_publicada, url_pdf, fecha_deteccion, nivel, coincidencia, enviado, registro_sanitario, lote_serial, titular, id_invima | El bot. Las 4 últimas columnas vienen de la página de detalle (desde el 30/10/2026). |
 | `Listado_Terapeutico` | codigo, descripcion, principio_activo, marca, tipo (MED/DM), subgrupo, lote, laboratorio | Cargado desde `DTSUMINISTRO` (ver abajo). Editable. |
 | `Aux_Productos` | Productos distintos y pares producto–LoteSerial de `DTSUMINISTRO`, con laboratorio y lote separados | Fórmulas. No borrar: `Listado_Terapeutico` lee de aquí lote y laboratorio. |

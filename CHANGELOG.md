@@ -4,6 +4,9 @@ Todas las fechas en hora de Colombia (America/Bogota).
 
 ## [2.4.3] - 2026-10-30
 
+### Cambiado
+- COS (cosméticos, aseo y plaguicidas) queda definida pero inactiva por defecto: no aplica al HDV (referente, 30/10/2026).
+
 ### Agregado
 - `cargaInicialAlimentos()` y `cargaInicialCosmeticos()`: atajos sin parámetros para el selector del editor.
 
