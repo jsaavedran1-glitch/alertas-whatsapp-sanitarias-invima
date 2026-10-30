@@ -232,7 +232,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 
 | Pestaña | Columnas | Quién la llena |
 |---|---|---|
-| `Config_Fuentes` | fuente, url, activa | Precargada (MED, DM). Editable. |
+| `Config_Fuentes` | fuente, url, activa | Precargada: MED, DM, ALI (alimentos y bebidas, `?direccion=da`) y COS (cosméticos, aseo y plaguicidas, `?direccion=dc`). En una hoja anterior al 30/10/2026 hay que añadir las filas de ALI y COS a mano. Editable (`activa` = `NO` desactiva). |
 | `Historico` | clave, fuente, numero, anio, titulo, tipo, fecha_publicada, url_pdf, fecha_deteccion, nivel, coincidencia, enviado | El bot. |
 | `Listado_Terapeutico` | codigo, descripcion, principio_activo, marca, tipo (MED/DM), subgrupo, lote, laboratorio | Cargado desde `DTSUMINISTRO` (ver abajo). Editable. |
 | `Aux_Productos` | Productos distintos y pares producto–LoteSerial de `DTSUMINISTRO`, con laboratorio y lote separados | Fórmulas. No borrar: `Listado_Terapeutico` lee de aquí lote y laboratorio. |
@@ -293,14 +293,14 @@ _Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéuti
 _Desarrollado por el QF Juan Pablo Saavedra_
 ```
 
-- Medicamentos: `💊 Medicamento`; dispositivos: `🩺 Dispositivo médico`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
+- Medicamentos: `💊 Medicamento`; dispositivos: `🩺 Dispositivo médico`; alimentos: `🍽️ Alimento y bebida`; cosméticos: `🧴 Cosmético, aseo y plaguicida`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
 - El título se muestra sin "Alerta sanitaria sobre:" (ya va en el encabezado).
 - Si el año de la fecha del listado no coincide con el de la alerta (fechas erradas de INVIMA), se muestra `📅 Detectada: <fecha>` en lugar de `Publicada`.
 - El resumen semanal y el mensaje agrupado siguen el mismo estilo.
 
 ## Cómo agregar fuentes o reglas
 
-- **Fuente nueva:** agregar una fila en `Config_Fuentes` (`fuente` corta en mayúsculas, p. ej. `COS`; `url` del listado sin `?page`; `activa` = `SI`). El prefijo del mensaje será `[INVIMA-COS]`. Antes, comprobar el listado con `probarAcceso()`/`volcarMuestraHtml()` y ejecutar `cargaInicial()` para no disparar el histórico de esa fuente. Para desactivar una fuente: `activa` = `NO`.
+- **Fuente nueva:** agregar una fila en `Config_Fuentes` (`fuente` corta en mayúsculas, p. ej. `COS`; `url` del listado, p. ej. `https://www.invima.gov.co/alertas-sanitarias?direccion=dc`; `activa` = `NO` mientras se carga). El prefijo del mensaje será `[INVIMA-COS]`. Ejecutar `cargaInicialFuente("COS")` para registrar su histórico sin enviarlo y después poner `activa` = `SI`. Para una dirección distinta de `da`/`dm`/`dd`/`dc` hay que agregarla también a `DIRECCION_FUENTE` y a `etiquetaFuente_` en `Codigo.gs`. Para desactivar una fuente: `activa` = `NO`.
 - **Regla nueva:** fila en `Reglas` con `termino`, `nivel` y, opcionalmente, `motivo` (se muestra en el mensaje, p. ej. `Uso frecuente: DOLEX`). Se aplica en la siguiente ejecución.
 - **Medicamento o dispositivo del HDV:** fila en `Listado_Terapeutico`. **Vigilancia:** fila en `Vigilancia`.
 
@@ -310,6 +310,7 @@ _Desarrollado por el QF Juan Pablo Saavedra_
 |---|---|---|
 | `inicializarHoja()` | Crea pestañas y encabezados | No |
 | `cargaInicial(paginas = 5)` | Pobla `Historico` sin enviar | No |
+| `cargaInicialFuente(fuente, paginas = 5)` | Carga inicial de una sola fuente nueva (p. ej. `"ALI"`), aunque esté con `activa` = `NO`; no toca las demás | No |
 | `probarSinEnviar()` | Flujo completo simulado | No |
 | `instalarDisparadores()` | Recrea los disparadores | No |
 | `revisarAlertas()` | Función principal | **Sí** |
@@ -319,7 +320,7 @@ _Desarrollado por el QF Juan Pablo Saavedra_
 | `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |
 | `buscarIdGrupo()` | Muestra el `GA_CHAT_ID` del grupo donde alguien escribió `ID BOT` en las últimas 24 h (GREEN-API `lastIncomingMessages`, solo lectura; no usa `getContacts` ni `getChats` y no registra otros mensajes). El número del bot debe ser miembro del grupo | No |
 | `reiniciarDiagnosticoImagenes()` | Vacía `Diag_Imagenes` para repetir el diagnóstico desde cero | No |
-| `probarAcceso()`, `inspeccionarSitioInvima()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA (`inspeccionarSitioInvima` resume enlaces, scripts y marcado del listado) | No |
+| `probarAcceso()`, `inspeccionarSitioInvima()`, `analizarSitioInvima()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA (`inspeccionarSitioInvima` resume enlaces, scripts y marcado del listado; `analizarSitioInvima` resume filtros, buscador, feeds, tarjetas por dirección y la página de detalle de una alerta) | No |
 
 ## Pruebas locales
 

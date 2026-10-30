@@ -65,6 +65,14 @@ const TARJETAS_MED = [
     fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12939" }),
   tarjeta({ numero: "357–2026", titulo: "DIALUX", slug: "dialux", fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12938" })
 ];
+const TARJETAS_ALI = [
+  tarjeta({ dir: "da", numero: "360–2026", titulo: "Bebida energizante XYZ sin registro sanitario", slug: "bebida-xyz",
+    fecha: "20-10-2026", clase: "Producto fraudulento", pdfId: "12960" })
+];
+const TARJETAS_COS = [
+  tarjeta({ dir: "dc", numero: "361–2026", titulo: "Crema aclaradora ABC con mercurio", slug: "crema-abc",
+    fecha: "20-10-2026", clase: "Producto fraudulento", pdfId: "12961" })
+];
 const TARJETAS_DM = [
   tarjeta({ dir: "dd", numero: "149–2026", titulo: "Cementos óseos con gentamicina Heraeus® Cemento óseo radiopaco a base de PMMA PALACOS® R+G pro 40/60/80",
     slug: "cementos-oseos-con-gentamicina-heraeus", tipo: "informe", estado: "En seguimiento", fecha: "13-10-2026", pdfId: "12905" }),
@@ -158,7 +166,7 @@ function crearEntorno(opciones = {}) {
   const borrados = [];
   const creados = [];
   const estado = {
-    html: { MED: ENVOLTURA(MED_FILAS), DM: ENVOLTURA(DM_FILAS) },
+    html: { MED: ENVOLTURA(MED_FILAS), DM: ENVOLTURA(DM_FILAS), ALI: PAGINA_NUEVA(TARJETAS_ALI), COS: PAGINA_NUEVA(TARJETAS_COS) },
     codigoGreen: 200
   };
 
@@ -209,7 +217,7 @@ function crearEntorno(opciones = {}) {
           const bytes = (estado.pdfs || {})[url];
           return { getResponseCode: () => (bytes ? 200 : 404), getBlob: () => ({ getBytes: () => bytes }) };
         }
-        const fuente = /dispositivos|direccion=dd/.test(url) ? "DM" : "MED";
+        const fuente = /direccion=da/.test(url) ? "ALI" : /direccion=dc/.test(url) ? "COS" : /dispositivos|direccion=dd/.test(url) ? "DM" : "MED";
         const nueva = url.match(/\/page\/(\d+)/);
         const pagina = nueva ? Number(nueva[1]) - 1 : Number((url.match(/page=(\d+)/) || [0, 0])[1]);
         const html = estado.paginas && estado.paginas[fuente]
@@ -311,6 +319,7 @@ prueba("cambio de sitio: lo ya registrado no se repite (con numero y sin numero)
   // Config_Fuentes con las URL viejas, como esta la hoja real.
   hojas.Config_Fuentes.getRange(2, 2, 2, 1).setValues([["https://app.invima.gov.co/alertas/medicamentos-productos-biologicos"],
     ["https://app.invima.gov.co/alertas/dispositivos-medicos-invima"]]);
+  hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["NO"], ["NO"]]);   // ALI y COS aun no activadas
   const roto = "https://app.invima.gov.co/alertas/sites/all/modules/ckeditor/ckfinder/ckfinder.html";
   hojas.Historico.getRange(5, 1, 1, 12).setValues([["MED:AS:308-2026", "MED", "308", "2026",
     "Alerta sanitaria sobre: Productos fraudulentos promocionados como medicamentos a través de comercio electrónico - Parte 6",
@@ -337,6 +346,35 @@ prueba("cambio de sitio: lo ya registrado no se repite (con numero y sin numero)
   const alerta = enviados.find((e) => String(e.cuerpo.message || "").includes("359-2026"));
   assert.ok(alerta.cuerpo.message.includes("\u{1F4C4} PDF: https://www.invima.gov.co/alertas-sanitarias/12950/pdf"));
   assert.ok(hojas.Log.filas().every((f) => f.estado === "OK"), "sin aviso tecnico");
+});
+
+prueba("fuentes ALI y COS: direccion da/dc, etiqueta propia y carga inicial por fuente sin tocar las demas", () => {
+  const { g, hojas, enviados, estado } = entornoListo();
+  assert.strictEqual(hojas.Config_Fuentes.d.length, 5, "MED, DM, ALI y COS precargadas");
+  assert.strictEqual(hojas.Config_Fuentes.d[3][1], "https://www.invima.gov.co/alertas-sanitarias?direccion=da");
+  const ali = g.parsearListado_(PAGINA_NUEVA(TARJETAS_ALI.concat(TARJETAS_COS)), "ALI");
+  assert.strictEqual(JSON.stringify(ali.map((x) => x.clave)), JSON.stringify(["ALI:AS:360-2026"]), "ALI ignora tarjetas dc");
+  assert.strictEqual(g.etiquetaFuente_("ALI"), "\u{1F37D}\uFE0F Alimento y bebida");
+  assert.strictEqual(g.etiquetaFuente_("COS"), "\u{1F9F4} Cosmético, aseo y plaguicida");
+  // Hoja real: ALI y COS agregadas despues, aun inactivas. cargaInicialFuente las carga sin tocar MED/DM.
+  hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["NO"], ["NO"]]);
+  g.cargaInicialFuente("ALI");
+  g.cargaInicialFuente("COS");
+  const filas = hojas.Historico.filas();
+  assert.strictEqual(JSON.stringify(filas.map((f) => f.clave)), JSON.stringify(["ALI:AS:360-2026", "COS:AS:361-2026"]));
+  assert.ok(filas.every((f) => f.enviado === "CARGA_INICIAL"));
+  assert.strictEqual(enviados.length, 0);
+  // Activadas: la revision no reenvia lo cargado y una alerta nueva de alimentos sale con su prefijo.
+  hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["SI"], ["SI"]]);
+  estado.html.MED = ENVOLTURA([]); estado.html.DM = ENVOLTURA([]);
+  g.cargaInicial();
+  estado.html.ALI = PAGINA_NUEVA(TARJETAS_ALI.concat([tarjeta({ dir: "da", numero: "362–2026", titulo: "Leche en polvo marca QRS adulterada",
+    slug: "leche-qrs", fecha: "30-10-2026", clase: "Producto fraudulento", pdfId: "12970" })]));
+  g.revisarAlertas();
+  const alerta = enviados.filter((e) => String(e.cuerpo.message || "").startsWith("[INVIMA-ALI]"));
+  assert.strictEqual(alerta.length, 1);
+  assert.ok(alerta[0].cuerpo.message.includes("*Alerta sanitaria No. 362-2026*") && alerta[0].cuerpo.message.includes("Alimento y bebida"));
+  assert.ok(!enviados.some((e) => String(e.cuerpo.message || "").includes("360-2026")), "lo de la carga inicial no se envia");
 });
 
 prueba("parsearListado_ sin items y clave de respaldo por URL", () => {
@@ -379,6 +417,8 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
 function entornoListo(opciones) {
   const e = crearEntorno(opciones);
   e.g.inicializarHoja();
+  // Como en la hoja real: ALI y COS quedan inactivas hasta que el referente las active.
+  e.hojas.Config_Fuentes.getRange(4, 3, 2, 1).setValues([["NO"], ["NO"]]);
   e.hojas.Listado_Terapeutico.getRange(2, 1, 1, 5).setValues([["DM-0457", "Cemento óseo con gentamicina", "Gentamicina", "Palacos", "DM"]]);
   e.hojas.Vigilancia.getRange(2, 1, 1, 1).setValues([["Butilbromuro de hioscina"]]);
   return e;
@@ -858,6 +898,30 @@ prueba("error 466: se registra, no se reintenta y no se reenvia despues", () => 
   estado.codigoGreen = 200;
   g.revisarAlertas();
   assert.strictEqual(enviados.length, 2, "solo el aviso tecnico, no las alertas");
+});
+
+prueba("analisisIndice_ y analisisDetalle_ resumen filtros, formulario, feeds, tarjetas y detalle", () => {
+  const { g } = crearEntorno();
+  const indice = '<html><head><link rel="alternate" type="application/rss+xml" href="/alertas-sanitarias/feed"/></head><body>' +
+    '<form action="/alertas-sanitarias" method="get"><input name="q"/><select name="anio"><option value="">Todos los años</option><option value="2026">2026</option></select></form>' +
+    '<a href="/alertas-sanitarias?direccion=da">A</a><a href="/alertas-sanitarias?direccion=dm">M</a><a href="/alertas-sanitarias?tipo=informe">I</a>' +
+    '<a href="/alertas-sanitarias?orden=fecha">O</a><span class="inv-lst-conteo"> 6.256 documentos </span>' +
+    PAGINA_NUEVA(TARJETAS_MED.concat(TARJETAS_ALI)) + '<a href="/alertas-sanitarias/page/2">2</a></body></html>';
+  const li = g.analisisIndice_(indice);
+  assert.ok(li[0].includes("da, dm") && li[1].includes("informe"), li.slice(0, 2).join(" / "));
+  assert.ok(li[2].includes("orden"), li[2]);
+  assert.ok(li[3].includes("GET /alertas-sanitarias campos=q,anio anios=(todos),2026"), li[3]);
+  assert.ok(li[4].includes("/alertas-sanitarias/feed"), li[4]);
+  assert.ok(li[5].includes("6.256 documentos"), li[5]);
+  assert.ok(li[6].includes('"dm":3') && li[6].includes('"da":1'), li[6]);
+  const detalle = '<html><body><article class="inv-det"><h1>DIALUX</h1><dl><dt>Número</dt><dd>357-2026</dd><dt>Registro sanitario</dt><dd>Sin registro</dd></dl>' +
+    '<img src="/web/image/12938/foto.jpg"/><img src="/invima_alertas_sanitarias/static/src/img/direcciones/medicamentos.png"/>' +
+    '<a href="/alertas-sanitarias/12938/pdf">PDF</a></article></body></html>';
+  const ld = g.analisisDetalle_(detalle);
+  assert.ok(ld[0].includes("h1: DIALUX"), ld[0]);
+  assert.ok(ld[1] === "IMAGENES (sin iconos ni logos): /web/image/12938/foto.jpg", ld[1]);
+  assert.ok(ld[2].includes("/alertas-sanitarias/12938/pdf"), ld[2]);
+  assert.ok(ld[4].includes("Número = 357-2026") && ld[4].includes("Registro sanitario = Sin registro"), ld[4]);
 });
 
 prueba("inspeccionHtml_ resume enlaces, scripts, APIs, marcadores y fragmento del sitio nuevo", () => {

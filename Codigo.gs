@@ -55,12 +55,16 @@ var COL_ENVIADO = 12; // columna "enviado" en Historico
 
 // Fuentes por defecto. En operacion se leen de la pestana Config_Fuentes.
 // Sitio nuevo (Odoo, 22/10/2026): un solo listado filtrado por direccion: da alimentos,
-// dm medicamentos, dd dispositivos medicos, dc cosmeticos.
+// dm medicamentos, dd dispositivos medicos, dc cosmeticos. ALI y COS se agregaron el 30/10/2026
+// (pedido del referente); en una hoja ya creada hay que anadir sus filas a Config_Fuentes y correr
+// cargaInicialFuente("ALI") / ("COS") antes de activarlas.
 var FUENTES_DEFECTO = [
   { fuente: "MED", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dm" },
-  { fuente: "DM", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dd" }
+  { fuente: "DM", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dd" },
+  { fuente: "ALI", url: BASE_INVIMA + "/alertas-sanitarias?direccion=da" },
+  { fuente: "COS", url: BASE_INVIMA + "/alertas-sanitarias?direccion=dc" }
 ];
-var DIRECCION_FUENTE = { MED: "dm", DM: "dd" };
+var DIRECCION_FUENTE = { MED: "dm", DM: "dd", ALI: "da", COS: "dc" };
 
 // URLs del sitio anterior que pueden seguir en Config_Fuentes: se traducen a las nuevas.
 var MIGRACION_URLS = [
@@ -148,6 +152,15 @@ function inicializarHoja() {
 function cargaInicial(paginas) {
   var n = (typeof paginas === "number" && paginas > 0) ? paginas : 5;
   return ejecutar_({ nombre: "CARGA", enviar: false, persistir: true, paginas: n });
+}
+
+// Carga inicial de UNA fuente nueva (p. ej. "ALI"), aunque este con activa = NO en Config_Fuentes.
+// No toca las demas fuentes: lo que publiquen mientras tanto lo envia la siguiente revision.
+function cargaInicialFuente(fuente, paginas) {
+  var f = String(fuente || "").trim().toUpperCase();
+  if (!DIRECCION_FUENTE[f] && !f) throw new Error("Indique la fuente, p. ej. cargaInicialFuente(\"ALI\").");
+  var n = (typeof paginas === "number" && paginas > 0) ? paginas : 5;
+  return ejecutar_({ nombre: "CARGA", enviar: false, persistir: true, paginas: n, soloFuente: f });
 }
 
 // Funcion principal (disparador cada 4 horas entre 6:00 y 20:00).
@@ -242,7 +255,7 @@ function ejecutar_(modo) {
   }
   try {
     var ss = abrirHoja_();
-    var fuentes = leerFuentes_(ss);
+    var fuentes = leerFuentes_(ss, modo.soloFuente);
     var reglas = cargarReglas_(ss);
     var claves = clavesHistorico_(ss);
     var nuevos = [];
@@ -746,6 +759,8 @@ function emoji_(codigo) {
 var E = {
   MED: 0x1F48A,        // pastilla
   DM: 0x1FA7A,         // estetoscopio
+  ALI: 0x1F37D,        // plato con cubiertos
+  COS: 0x1F9F4,        // frasco de locion
   TITULO: 0x1F4CC,     // chincheta
   FECHA: 0x1F4C5,      // calendario
   ID: 0x1F194,         // ID
@@ -771,6 +786,8 @@ function emojiNivel_(nivel) {
 function etiquetaFuente_(fuente) {
   if (fuente === "MED") return emoji_(E.MED) + " Medicamento";
   if (fuente === "DM") return emoji_(E.DM) + " Dispositivo médico";
+  if (fuente === "ALI") return emoji_(E.ALI) + String.fromCodePoint(0xFE0F) + " Alimento y bebida";
+  if (fuente === "COS") return emoji_(E.COS) + " Cosmético, aseo y plaguicida";
   return fuente;
 }
 
@@ -1049,10 +1066,19 @@ function leerFilas_(hoja) {
   });
 }
 
-function leerFuentes_(ss) {
+// Fuentes activas de Config_Fuentes. Con soloFuente se devuelve unicamente esa (activa o no); si no
+// esta en la hoja pero si en FUENTES_DEFECTO, se usa la URL por defecto.
+function leerFuentes_(ss, soloFuente) {
   var filas = leerFilas_(ss.getSheetByName("Config_Fuentes")).filter(function(f) {
-    return f.fuente && f.url && normalizar_(f.activa) !== "NO";
+    if (!f.fuente || !f.url) return false;
+    if (soloFuente) return String(f.fuente).trim().toUpperCase() === soloFuente;
+    return normalizar_(f.activa) !== "NO";
   });
+  if (filas.length === 0 && soloFuente) {
+    var defecto = FUENTES_DEFECTO.filter(function(f) { return f.fuente === soloFuente; })[0];
+    if (defecto) return [defecto];
+    throw new Error("La fuente " + soloFuente + " no esta en Config_Fuentes ni en FUENTES_DEFECTO.");
+  }
   if (filas.length === 0) throw new Error("Config_Fuentes no tiene fuentes activas.");
   return filas.map(function(f) {
     return { fuente: String(f.fuente).trim().toUpperCase(), url: migrarUrlFuente_(String(f.url).trim()) };
@@ -1155,6 +1181,106 @@ function inspeccionarSitioInvima() {
   var html = r.html || "";
   Logger.log("[INSPECCION] %s -> HTTP %s, %s caracteres", url, r.codigo, html.length);
   inspeccionHtml_(html).forEach(function(linea) { Logger.log(linea); });
+}
+
+// Analisis del sitio nuevo de INVIMA para decidir que mas puede aprovechar el bot: filtros
+// (direccion, tipo, anio), formulario de busqueda, feeds RSS/JSON, tarjetas por direccion y la
+// estructura de la pagina de detalle de una alerta. Solo lectura; no envia nada ni escribe en la hoja.
+function analizarSitioInvima() {
+  var indice = descargar_(URL_INDICE_ALERTAS);
+  Logger.log("[INDICE] %s -> HTTP %s, %s caracteres", URL_INDICE_ALERTAS, indice.codigo, (indice.html || "").length);
+  analisisIndice_(indice.html || "").forEach(function(l) { Logger.log(l); });
+
+  var detalleUrl = "";
+  Object.keys(DIRECCION_FUENTE).forEach(function(fuente) {
+    Utilities.sleep(ESPERA_FUENTES_MS);
+    var url = BASE_INVIMA + "/alertas-sanitarias?direccion=" + DIRECCION_FUENTE[fuente];
+    var r = descargar_(url);
+    var items = parsearListado_(r.html || "", fuente);
+    var sinNumero = items.filter(function(it) { return !it.numero; }).length;
+    var sinPdf = items.filter(function(it) { return !/\/pdf$/.test(it.url); }).length;
+    Logger.log("[%s] %s -> HTTP %s, %s tarjetas (%s sin numero, %s sin PDF). Primeras: %s", fuente, url, r.codigo,
+      items.length, sinNumero, sinPdf, items.slice(0, 3).map(function(it) {
+        return (it.numero ? it.numero + "-" + it.anio : "s/n") + " " + it.titulo.substring(0, 50) + " [" + it.fecha +
+          (it.clasificacion ? " · " + it.clasificacion : "") + (it.estadoDm ? " · " + it.estadoDm : "") + "]";
+      }).join(" | "));
+    if (!detalleUrl && items[0] && items[0].urlDetalle) detalleUrl = items[0].urlDetalle;
+  });
+
+  if (detalleUrl) {
+    Utilities.sleep(ESPERA_FUENTES_MS);
+    var d = descargar_(detalleUrl);
+    Logger.log("[DETALLE] %s -> HTTP %s, %s caracteres", detalleUrl, d.codigo, (d.html || "").length);
+    analisisDetalle_(d.html || "").forEach(function(l) { Logger.log(l); });
+  }
+}
+
+function analisisIndice_(html) {
+  var lineas = [];
+  var unicos = function(arr) {
+    var v = {};
+    return arr.filter(function(x) { if (v[x]) return false; v[x] = true; return true; });
+  };
+  var cap = function(re, grupo) {
+    var out = [], m;
+    while ((m = re.exec(html)) !== null) out.push(m[grupo]);
+    return unicos(out);
+  };
+  lineas.push("FILTROS direccion=: " + cap(/[?&]direccion=(\w+)/g, 1).join(", "));
+  lineas.push("FILTROS tipo=: " + cap(/[?&]tipo=(\w+)/g, 1).join(", "));
+  var otrosParametros = cap(/href="[^"]*\/alertas-sanitarias[^"]*[?&](\w+)=/g, 1).filter(function(p) { return p !== "direccion" && p !== "tipo"; });
+  lineas.push("OTROS PARAMETROS en enlaces: " + (otrosParametros.join(", ") || "ninguno"));
+  var forms = [];
+  var reForm = /<form\b([^>]*)>([\s\S]*?)<\/form>/gi, f;
+  while ((f = reForm.exec(html)) !== null) {
+    var attrs = f[1], cuerpo = f[2];
+    var action = (attrs.match(/action="([^"]*)"/) || [0, "(sin action)"])[1];
+    var method = (attrs.match(/method="([^"]*)"/) || [0, "get"])[1];
+    var nombres = [], m2, re2 = /<(?:input|select)\b[^>]*name="([^"]+)"/g;
+    while ((m2 = re2.exec(cuerpo)) !== null) nombres.push(m2[1]);
+    var anios = [], re3 = /<option[^>]*value="(\d{4}|)"[^>]*>/g;
+    while ((m2 = re3.exec(cuerpo)) !== null) anios.push(m2[1] || "(todos)");
+    forms.push(method.toUpperCase() + " " + action + " campos=" + unicos(nombres).join(",") + (anios.length ? " anios=" + unicos(anios).join(",") : ""));
+  }
+  lineas.push("FORMULARIOS (" + forms.length + "): " + (forms.join(" | ") || "ninguno"));
+  var feeds = cap(/<link[^>]+rel="alternate"[^>]+href="([^"]+)"/gi, 1)
+    .concat(cap(/href="([^"]*(?:\.rss|\.xml|\.json|\/feed|\/api\/)[^"]*)"/gi, 1));
+  lineas.push("FEEDS RSS/JSON/API: " + (unicos(feeds).join(" | ") || "ninguno"));
+  lineas.push("TOTAL: " + ((html.match(/inv-lst-conteo"[^>]*>\s*([^<]+?)\s*</) || [0, "?"])[1]));
+  var dirs = {}, m;
+  var reDir = /inv-lst-tarjeta inv-dir--(\w+)/g;
+  while ((m = reDir.exec(html)) !== null) dirs[m[1]] = (dirs[m[1]] || 0) + 1;
+  lineas.push("TARJETAS en el indice por direccion: " + JSON.stringify(dirs));
+  lineas.push("PAGINACION: " + cap(/href="([^"]*\/alertas-sanitarias\/page\/\d+[^"]*)"/g, 1).join(" | "));
+  var clases = cap(/class="(inv-[\w-]+)/g, 1);
+  lineas.push("CLASES inv-* (" + clases.length + "): " + clases.join(" "));
+  return lineas;
+}
+
+function analisisDetalle_(html) {
+  var lineas = [];
+  var cuerpo = html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ");
+  var titulos = [], m, re = /<h([1-4])[^>]*>([\s\S]*?)<\/h\1>/gi;
+  while ((m = re.exec(cuerpo)) !== null) titulos.push("h" + m[1] + ": " + limpiarTexto_(m[2]).substring(0, 80));
+  lineas.push("ENCABEZADOS: " + (titulos.join(" | ") || "ninguno"));
+  var imgs = [], re2 = /<img[^>]+src="([^"]+)"/gi;
+  while ((m = re2.exec(cuerpo)) !== null) {
+    if (!/icono|icon|logo|direcciones\/|static\/src\/img|\.svg/i.test(m[1])) imgs.push(m[1]);
+  }
+  lineas.push("IMAGENES (sin iconos ni logos): " + (imgs.join(" | ") || "ninguna"));
+  var pdfs = [], re3 = /href="([^"]*(?:\/pdf|\.pdf)[^"]*)"/gi;
+  while ((m = re3.exec(cuerpo)) !== null) pdfs.push(m[1]);
+  lineas.push("PDF: " + (pdfs.join(" | ") || "ninguno"));
+  var clases = {}, re4 = /class="(inv-[\w-]+)/g;
+  while ((m = re4.exec(cuerpo)) !== null) clases[m[1]] = (clases[m[1]] || 0) + 1;
+  lineas.push("CLASES inv-*: " + Object.keys(clases).join(" "));
+  // Campos etiquetados: "Etiqueta: valor", <dt>/<dd>, <th>/<td> o pares de spans.
+  var campos = [], re5 = /<(?:dt|th|strong|b|label|span[^>]*etiqueta[^>]*)[^>]*>\s*([^<:]{2,40}):?\s*<\/(?:dt|th|strong|b|label|span)>\s*(?:<[^>]+>\s*)*([^<]{1,120})/gi;
+  while ((m = re5.exec(cuerpo)) !== null && campos.length < 30) campos.push(limpiarTexto_(m[1]) + " = " + limpiarTexto_(m[2]).substring(0, 80));
+  lineas.push("CAMPOS: " + (campos.join(" | ") || "ninguno reconocido"));
+  var i = cuerpo.indexOf("inv-det") >= 0 ? cuerpo.indexOf("inv-det") : cuerpo.search(/<main|<article|id="wrap"/i);
+  lineas.push("FRAGMENTO: " + (i < 0 ? "(no se ubico el contenido principal)" : cuerpo.substring(i, i + 3000).replace(/\s+/g, " ")));
+  return lineas;
 }
 
 function inspeccionHtml_(html) {

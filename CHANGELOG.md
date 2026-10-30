@@ -2,6 +2,13 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.3.0] - 2026-10-30
+
+### Agregado
+- Fuentes **ALI** (alimentos y bebidas, `?direccion=da`) y **COS** (cosméticos, aseo y plaguicidas, `?direccion=dc`), con etiquetas 🍽️ y 🧴. Quedan precargadas en hojas nuevas; en la hoja actual se agregan a `Config_Fuentes` con `activa` = `NO`, se cargan con `cargaInicialFuente("ALI")` / `("COS")` y luego se activan.
+- `cargaInicialFuente(fuente)`: carga inicial de una sola fuente sin tocar las demás.
+- `analizarSitioInvima()`: diagnóstico del sitio nuevo (filtros, buscador, años, feeds, tarjetas por dirección y página de detalle) para decidir qué más aprovechar.
+
 ## [2.2.1] - 2026-10-22
 
 ### Cambiado
