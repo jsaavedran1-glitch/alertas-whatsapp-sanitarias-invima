@@ -278,6 +278,10 @@ function ejecutar_(modo) {
     var nuevos = [];
     var registros = {};
     var fallidas = [];
+    // En carga inicial, lo publicado HOY no se registra como historico: lo detecta y envia la siguiente
+    // revision. (El 30/10/2026 una cargaInicial en operacion marco como historica la alerta 368-2026.)
+    var hoy = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd");
+    var omitidasHoy = [];
 
     fuentes.forEach(function(f, i) {
       var reg = { fuente: f.fuente, leidos: 0, nuevos: 0, enviados: 0, estado: "OK", error: "" };
@@ -300,6 +304,7 @@ function ejecutar_(modo) {
         var nuevosPagina = 0;
         items.forEach(function(it) {
           if (yaRegistrada_(claves, it)) return;
+          if (modo.nombre === "CARGA" && it.fecha === hoy) { omitidasHoy.push(it.clave); return; }
           claves[it.clave] = true;
           if (modo.nombre !== "CARGA") leerDetalle_(it);
           clasificar_(it, reglas);
@@ -321,6 +326,10 @@ function ejecutar_(modo) {
       if (fallidas.length > 0 && !cuotaAgotada) avisoTecnico_(fallidas, modo.enviar);
     }
 
+    if (omitidasHoy.length > 0) {
+      Logger.log("CARGA: %s alerta(s) publicadas hoy NO se registraron (las enviara la proxima revision): %s",
+        omitidasHoy.length, omitidasHoy.join(", "));
+    }
     escribirLog_(ss, fuentes.map(function(f) { return registros[f.fuente]; }), modo);
     Logger.log("%s: %s nuevos de %s fuentes.", modo.nombre, nuevos.length, fuentes.length);
     return { nuevos: nuevos, registros: registros };

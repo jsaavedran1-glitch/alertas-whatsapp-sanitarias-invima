@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.4.4] - 2026-10-30
+
+### Corregido
+- `cargaInicial()` ya no registra como históricas las alertas publicadas el mismo día: las deja para la revisión siguiente y lo anota en el registro. El 30/10/2026 una carga inicial en operación marcó la alerta MED 368-2026 (DARZALEX, lote PJS0C02) como histórica; se retiró de `Historico` para que la revisión de las 2:15 p. m. la enviara.
+
 ## [2.4.3] - 2026-10-30
 
 ### Cambiado

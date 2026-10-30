@@ -312,7 +312,7 @@ _Desarrollado por el QF Juan Pablo Saavedra_
 | Función | Uso | ¿Envía WhatsApp? |
 |---|---|---|
 | `inicializarHoja()` | Crea pestañas y encabezados | No |
-| `cargaInicial(paginas = 5)` | Pobla `Historico` sin enviar | No |
+| `cargaInicial(paginas = 5)` | Pobla `Historico` sin enviar. Lo publicado el mismo día no se registra: lo envía la revisión siguiente | No |
 | `cargaInicialFuente(fuente, paginas = 5)` | Carga inicial de una sola fuente nueva (p. ej. `"ALI"`), aunque esté con `activa` = `NO`; no toca las demás | No |
 | `cargaInicialAlimentos()`, `cargaInicialCosmeticos()` | Atajos de `cargaInicialFuente` para ALI y COS, ejecutables desde el selector del editor | No |
 | `probarSinEnviar()` | Flujo completo simulado | No |

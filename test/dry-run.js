@@ -475,6 +475,23 @@ prueba("revisarAlertas lee el detalle solo de las alertas nuevas; cargaInicial n
   assert.strictEqual(fila.lote_serial, "—");
 });
 
+prueba("cargaInicial no registra como historico lo publicado hoy; la revision siguiente lo envia", () => {
+  const { g, hojas, enviados, estado, registro } = entornoListo();
+  const hoy = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  const fechaHoy = p(hoy.getDate()) + "-" + p(hoy.getMonth() + 1) + "-" + hoy.getFullYear();
+  estado.paginas = { MED: [PAGINA_NUEVA([tarjeta({ numero: "368–2026", titulo: "FALSIFICACIÓN DEL PRODUCTO DARZALEX SC 120 MG/ML, CON LOTE PJS0C02",
+    slug: "darzalex", fecha: fechaHoy, clase: "Producto fraudulento", pdfId: "13041" })].concat(TARJETAS_MED))], DM: [PAGINA_NUEVA(TARJETAS_DM)] };
+  g.cargaInicial();
+  const claves = hojas.Historico.filas().map((f) => f.clave);
+  assert.ok(!claves.includes("MED:AS:368-2026"), "la de hoy no entra a la carga");
+  assert.ok(claves.includes("MED:AS:357-2026"), "las anteriores si");
+  assert.ok(registro.some((l) => l.includes("publicadas hoy NO se registraron") && l.includes("MED:AS:368-2026")));
+  assert.strictEqual(enviados.length, 0);
+  g.revisarAlertas();
+  assert.ok(enviados.some((e) => String(e.cuerpo.message || e.cuerpo.caption || "").includes("368-2026")), "la revision la envia");
+});
+
 prueba("parsearListado_ sin items y clave de respaldo por URL", () => {
   const { g } = crearEntorno();
   assert.strictEqual(g.parsearListado_("<html>error</html>", "MED").length, 0);
