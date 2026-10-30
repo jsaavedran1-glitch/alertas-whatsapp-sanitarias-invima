@@ -134,7 +134,10 @@ Mensaje que llega al grupo:
 • BUSCAPINA COMPOSITUM: HIOSCINA+DIPIRONA 2.5G+20MG 5ML AMP (...)
 • Uso frecuente: BUSCAPINA
 
-📄 PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
+🩺 *Recomendación INVIMA para IPS y profesionales:*
+1. Comuníquese con el importador, distribuidor o comercializador para precisar si existen recomendaciones específicas… (máx. 350 caracteres)
+
+📄 PDF: https://www.invima.gov.co/alertas-sanitarias/12905/pdf
 ❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
 
 _Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_
@@ -233,7 +236,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | Pestaña | Columnas | Quién la llena |
 |---|---|---|
 | `Config_Fuentes` | fuente, url, activa | Precargada: MED, DM, ALI (alimentos y bebidas, `?direccion=da`) y COS (cosméticos, aseo y plaguicidas, `?direccion=dc`). En una hoja anterior al 30/10/2026 hay que añadir las filas de ALI y COS a mano. Editable (`activa` = `NO` desactiva). |
-| `Historico` | clave, fuente, numero, anio, titulo, tipo, fecha_publicada, url_pdf, fecha_deteccion, nivel, coincidencia, enviado | El bot. |
+| `Historico` | clave, fuente, numero, anio, titulo, tipo, fecha_publicada, url_pdf, fecha_deteccion, nivel, coincidencia, enviado, registro_sanitario, lote_serial, titular, id_invima | El bot. Las 4 últimas columnas vienen de la página de detalle (desde el 30/10/2026). |
 | `Listado_Terapeutico` | codigo, descripcion, principio_activo, marca, tipo (MED/DM), subgrupo, lote, laboratorio | Cargado desde `DTSUMINISTRO` (ver abajo). Editable. |
 | `Aux_Productos` | Productos distintos y pares producto–LoteSerial de `DTSUMINISTRO`, con laboratorio y lote separados | Fórmulas. No borrar: `Listado_Terapeutico` lee de aquí lote y laboratorio. |
 | `Reglas` | termino, nivel (ALTA/MEDIA/BAJA), motivo | Precargada: términos MEDIA/BAJA y 53 marcas comerciales de medicamentos de uso frecuente (ALTA, motivo "Uso frecuente"). Editable. |
@@ -254,7 +257,8 @@ Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `
 
 - **Clave única:** `FUENTE:TIPO:NUMERO-AÑO`, con TIPO `AS` (alerta sanitaria) o `IS` (informe de seguridad), p. ej. `MED:AS:330-2026`, `DM:IS:148-2026`. El número se extrae del nombre del PDF (`No_ #355-2026`). Si no hay número, la clave es `FUENTE:url_pdf` cuando el enlace es un PDF; si INVIMA enlaza otra cosa (p. ej. `ckfinder.html`, el 20/10/2026), es `FUENTE:AS:T:<título normalizado>`.
 - **La fecha del listado no es confiable** (alertas 2026 con fecha 2016-10-14): nunca se filtra por fecha.
-- **Clasificación** (mayúsculas, sin tildes, por palabras completas, sobre el título):
+- **Página de detalle (sitio nuevo):** de cada alerta **nueva** (no en la carga inicial) el bot lee `/alertas-sanitarias/<slug>` y toma la tabla *Producto* (registro sanitario, titular, lote/serial), la ficha (`No. de identificación interno`, programa de vigilancia, categoría, fuente) y la sección *Recomendaciones para IPS, EAPB y profesionales de la salud* (recortada a 350 caracteres). Lote/serial, titular y producto entran en la clasificación (un lote afectado que el HDV dispensó → 🔴 ALTA; un titular proveedor → 🟠 MEDIA). Si el detalle no responde, la alerta sale solo con los datos del listado. `LEER_DETALLE = false` lo desactiva. Análisis del sitio del 30/10/2026: no hay RSS, JSON ni API; las fotos del producto solo están en el PDF.
+- **Clasificación** (mayúsculas, sin tildes, por palabras completas, sobre el título y, si hay detalle, producto, lote/serial y titular):
   - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Listado_Terapeutico` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia`, o con una regla ALTA (p. ej. una marca comercial de uso frecuente: `Uso frecuente: OZEMPIC`). La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
   - ⚪ **BAJA:** contiene un término BAJA y no tiene coincidencias ALTA.
   - 🟠 **MEDIA:** contiene un término MEDIA, es un informe de seguridad, o nombra un **laboratorio proveedor** del HDV (`Laboratorio proveedor HDV: GENFAR`).
@@ -280,13 +284,17 @@ Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (genera
 
 📌 Cementos óseos con gentamicina Heraeus® ... PALACOS® R+G...
 📅 Publicada: 2026-10-19
-🆔 ID INVIMA: DI2609-00541 · Estado: SEGUIMIENTO      (solo DM)
+🆔 ID INVIMA: DI2609-00541 · Estado: En seguimiento · Programa: Tecnovigilancia   (según el detalle)
+🧾 Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes   (según el detalle; los valores vacíos no se muestran)
 
 🏥 *Coincidencia HDV:*                                 (si aplica)
 • CEMENTO OSEO: CEMENTO OSEO ALTA VISCOCIDAD ... y 1 más
 • Vigilancia: GENTAMICINA
 
-📄 PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
+🩺 *Recomendación INVIMA para IPS y profesionales:*
+1. Comuníquese con el importador, distribuidor o comercializador para precisar si existen recomendaciones específicas… (máx. 350 caracteres)
+
+📄 PDF: https://www.invima.gov.co/alertas-sanitarias/12905/pdf
 ❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
 
 _Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_
@@ -296,6 +304,7 @@ _Desarrollado por el QF Juan Pablo Saavedra_
 - Medicamentos: `💊 Medicamento`; dispositivos: `🩺 Dispositivo médico`; alimentos: `🍽️ Alimento y bebida`; cosméticos: `🧴 Cosmético, aseo y plaguicida`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
 - El título se muestra sin "Alerta sanitaria sobre:" (ya va en el encabezado).
 - Si el año de la fecha del listado no coincide con el de la alerta (fechas erradas de INVIMA), se muestra `📅 Detectada: <fecha>` en lugar de `Publicada`.
+- Si el texto completo con la recomendación supera el límite del pie de foto (1.024 caracteres), la alerta de medicamentos sale con la foto y sin la recomendación; dispositivos, alimentos y cosméticos van siempre como texto completo.
 - El resumen semanal y el mensaje agrupado siguen el mismo estilo.
 
 ## Cómo agregar fuentes o reglas

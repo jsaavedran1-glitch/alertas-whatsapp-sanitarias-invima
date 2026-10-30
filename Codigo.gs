@@ -40,6 +40,11 @@ var FUENTES_CON_FOTO = ["MED"];
 var MAX_CARACTERES_PIE = 1024;    // si el texto es mas largo, la alerta sale solo como texto
 var ESPERA_MENSAJES_MS = 2000;   // entre mensajes de WhatsApp
 var ESPERA_FUENTES_MS = 1500;    // entre descargas a INVIMA
+var ESPERA_DETALLE_MS = 700;     // entre paginas de detalle de alertas nuevas
+// Pagina de detalle de cada alerta NUEVA (sitio Odoo, analizada el 30/10/2026): registro sanitario,
+// titular, lote/serial, ID interno, programa y recomendaciones para IPS. Solo HTML; el PDF no se lee.
+var LEER_DETALLE = true;
+var MAX_RECOMENDACION = 350;     // caracteres de la recomendacion para IPS en el mensaje
 var MAX_BAJA_RESUMEN = 40;       // titulos BAJA listados en el resumen semanal
 var LONGITUD_MIN_TERMINO = 4;    // Listado Terapeutico y Vigilancia: evita coincidencias espurias con nombres cortos
 var LONGITUD_MIN_LOTE = 5;       // lotes de al menos 5 caracteres y con algun digito
@@ -84,7 +89,7 @@ var REGEX_PDF_LISTADO = /ckfinder\/userfiles\/files\/(?:ALERTAS|INFORMES)[^"']+\
 var ENCABEZADOS = {
   Config_Fuentes: ["fuente", "url", "activa"],
   Historico: ["clave", "fuente", "numero", "anio", "titulo", "tipo", "fecha_publicada", "url_pdf",
-    "fecha_deteccion", "nivel", "coincidencia", "enviado"],
+    "fecha_deteccion", "nivel", "coincidencia", "enviado", "registro_sanitario", "lote_serial", "titular", "id_invima"],
   Listado_Terapeutico: ["codigo", "descripcion", "principio_activo", "marca", "tipo", "subgrupo", "lote", "laboratorio"],
   Reglas: ["termino", "nivel", "motivo"],
   Vigilancia: ["principio_activo", "motivo"],
@@ -187,9 +192,11 @@ function vistaPrevia() {
     var r = descargar_(urlPagina_(f.url, 0));
     var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
     Logger.log("[%s] HTTP %s, %s items en la pagina 0", f.fuente, r.codigo, items.length);
-    items.forEach(function(it) {
+    items.forEach(function(it, k) {
+      var registrada = yaRegistrada_(claves, it);
+      if (!registrada || k < 2) leerDetalle_(it); // detalle de las nuevas y de las 2 primeras, para ver el formato
       clasificar_(it, reglas);
-      var estado = yaRegistrada_(claves, it) ? "ya registrada en Historico" : "NUEVA";
+      var estado = registrada ? "ya registrada en Historico" : "NUEVA";
       Logger.log("[VISTA PREVIA - %s - %s]\n%s", it.clave, estado, formatearMensaje_(it));
     });
   });
@@ -208,6 +215,7 @@ function enviarPruebaAlerta() {
     var items = (r.codigo === 200) ? parsearListado_(r.html, f.fuente) : [];
     items.forEach(function(it) { clasificar_(it, reglas); });
     var alta = items.filter(function(it) { return it.nivel === "ALTA"; })[0];
+    if (alta) { leerDetalle_(alta); clasificar_(alta, reglas); }
     candidata = alta || candidata || items[0] || null;
     return !!alta;
   });
@@ -284,6 +292,7 @@ function ejecutar_(modo) {
         items.forEach(function(it) {
           if (yaRegistrada_(claves, it)) return;
           claves[it.clave] = true;
+          if (modo.nombre !== "CARGA") leerDetalle_(it);
           clasificar_(it, reglas);
           it.fechaDeteccion = new Date();
           nuevos.push(it);
@@ -564,6 +573,49 @@ function parsearTarjetas_(html, fuente) {
   return items;
 }
 
+// Lee la pagina de detalle de una alerta del sitio nuevo y completa el item: tabla "Producto"
+// (td[data-etiqueta]), ficha dl.inv-det-datos (ID interno, programa, categoria, fuente) y la
+// seccion "Recomendaciones para IPS, EAPB y profesionales de la salud". No lee el PDF.
+function leerDetalle_(it) {
+  if (!LEER_DETALLE || !it.urlDetalle || it.detalleLeido) return it;
+  it.detalleLeido = true;
+  Utilities.sleep(ESPERA_DETALLE_MS);
+  var r = descargar_(it.urlDetalle);
+  if (r.codigo !== 200 || !r.html) {
+    Logger.log("[%s] Detalle HTTP %s: se usa solo el listado.", it.clave, r.codigo);
+    return it;
+  }
+  return aplicarDetalle_(it, r.html);
+}
+
+function aplicarDetalle_(it, html) {
+  var celda = function(etiqueta) {
+    var re = new RegExp('<td[^>]*data-etiqueta="' + etiqueta + '"[^>]*>([\\s\\S]*?)<\\/td>', "i");
+    var m = html.match(re);
+    return m ? limpiarTexto_(m[1]) : "";
+  };
+  it.productoDetalle = celda("Producto");
+  it.registroSanitario = celda("Registro sanitario");
+  it.titular = celda("Titular");
+  it.loteSerial = celda("Lote / Serial");
+  var datos = {};
+  var re = /<dt>\s*([\s\S]*?)\s*<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi, m;
+  while ((m = re.exec(html)) !== null) datos[normalizar_(m[1])] = limpiarTexto_(m[2]);
+  if (datos["NO DE IDENTIFICACION INTERNO"]) it.idDm = datos["NO DE IDENTIFICACION INTERNO"];
+  if (datos["PROGRAMA DE VIGILANCIA"]) it.programa = datos["PROGRAMA DE VIGILANCIA"];
+  if (datos["CATEGORIA"]) it.categoria = datos["CATEGORIA"];
+  if (datos["FUENTE"]) it.fuenteInfo = datos["FUENTE"];
+  var secciones = html.split(/<section class="inv-det-reco">/).slice(1);
+  var ips = secciones.filter(function(sec) { return /<h4>[^<]*\bIPS\b/i.test(sec); })[0];
+  if (ips) {
+    var texto = limpiarTexto_((ips.match(/inv-det-reco-texto"[^>]*>([\s\S]*?)<\/div>/) || [0, ""])[1]
+      .replace(/<\/p>\s*<p>/g, " "));
+    if (texto.length > MAX_RECOMENDACION) texto = texto.substring(0, MAX_RECOMENDACION - 1).replace(/\s+\S*$/, "") + "\u2026";
+    it.recomendacionIps = texto;
+  }
+  return it;
+}
+
 // "358–2026" (guion, raya o guion largo) en la cabeza de la tarjeta.
 function numeroTarjeta_(texto) {
   var m = String(texto || "").match(/(?:^|[^\d])(\d{1,4})\s*[\u2013\u2014\-]\s*(20\d{2})(?!\d)/);
@@ -696,8 +748,10 @@ function laboratoriosDe_(texto) {
 // BAJA: termino BAJA sin coincidencia ALTA.
 // MEDIA: termino MEDIA, tipo "Informe de seguridad" o laboratorio proveedor del HDV. BAJA: el resto.
 function clasificar_(it, reglas) {
-  var t = normTermino_(it.titulo);
-  var tLote = normalizar_(it.titulo); // los lotes se comparan sin singularizar
+  // Titulo mas, si se leyo el detalle, producto, lote/serial y titular (sin los valores vacios "—").
+  var extra = [it.productoDetalle, it.loteSerial, it.titular].filter(function(x) { return x && x !== "\u2014"; }).join(" ");
+  var t = normTermino_(it.titulo + " " + extra);
+  var tLote = normalizar_(it.titulo + " " + extra); // los lotes se comparan sin singularizar
   var coincidencias = [];
   var laboratorios = [];
   var porTermino = {};
@@ -769,7 +823,9 @@ var E = {
   ENLACE: 0x1F517,     // enlace
   RESUMEN: 0x1F4CA,    // grafico
   REVISAR: 0x1F50E,    // lupa
-  DUDAS: 0x2753        // signo de pregunta
+  DUDAS: 0x2753,       // signo de pregunta
+  FICHA: 0x1F9FE,      // recibo (registro sanitario, lote, titular)
+  IPS: 0x1FA7A         // estetoscopio (recomendacion para IPS)
 };
 
 // Contacto para dudas: enlace wa.me que abre el chat del QF (no envia nada ni consume cuota).
@@ -824,7 +880,9 @@ function lineasSinNovedades_() {
   ];
 }
 
-function formatearMensaje_(it) {
+// sinRecomendacion: version mas corta (sin la recomendacion para IPS) cuando el texto completo no cabe
+// como pie de foto.
+function formatearMensaje_(it, sinRecomendacion) {
   var lineas = [
     "[INVIMA-" + it.fuente + "] " + emojiNivel_(it.nivel) + " *PRIORIDAD " + it.nivel + "* · " + etiquetaFuente_(it.fuente),
     "*" + encabezado_(it) + "*",
@@ -832,17 +890,29 @@ function formatearMensaje_(it) {
     emoji_(E.TITULO) + " " + tituloCorto_(it.titulo),
     lineaFecha_(it)
   ];
-  if (it.idDm) {
-    lineas.push(emoji_(E.ID) + " ID INVIMA: " + it.idDm + " · Estado: " + (it.estadoDm || "—"));
-  } else if (it.estadoDm) {
-    lineas.push(emoji_(E.ID) + " Estado: " + it.estadoDm);
-  }
+  var id = [];
+  if (it.idDm) id.push("ID INVIMA: " + it.idDm);
+  if (it.estadoDm) id.push("Estado: " + it.estadoDm);
+  if (it.programa) id.push("Programa: " + it.programa);
+  if (id.length > 0) lineas.push(emoji_(E.ID) + " " + id.join(" · "));
+  var ficha = [];
+  if (valorDetalle_(it.registroSanitario)) ficha.push("Registro sanitario: " + it.registroSanitario);
+  if (valorDetalle_(it.loteSerial)) ficha.push("Lote/Serial: " + it.loteSerial);
+  if (valorDetalle_(it.titular)) ficha.push("Titular: " + it.titular);
+  if (ficha.length > 0) lineas.push(emoji_(E.FICHA) + " " + ficha.join(" · "));
   if (it.coincidencia) {
     lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
     it.coincidencia.split("; ").forEach(function(c) { lineas.push("• " + c); });
   }
+  if (it.recomendacionIps && !sinRecomendacion) {
+    lineas.push("", emoji_(E.IPS) + " *Recomendación INVIMA para IPS y profesionales:*", it.recomendacionIps);
+  }
   lineas.push("", emoji_(E.PDF) + " PDF: " + it.url, lineaContacto_(), "", firma_());
   return lineas.join("\n");
+}
+
+function valorDetalle_(v) {
+  return !!v && v !== "\u2014" && v !== "-";
 }
 
 // Mensaje unico cuando hay mas de MAX_MENSAJES alertas inmediatas en una ejecucion.
@@ -874,6 +944,11 @@ function enviarWhatsApp_(mensaje, enviarReal) {
 // PDF) con el texto al pie (sendFileByUpload). Si no hay foto, el texto es muy largo o el envio de la
 // foto falla por otra causa que no sea el 466, se envia como texto. Cuenta como un solo mensaje.
 function enviarAlerta_(mensaje, it, enviarReal) {
+  // Si el texto completo no cabe como pie de foto, se prefiere la foto sin la recomendacion para IPS.
+  if (mensaje.length > MAX_CARACTERES_PIE && it.recomendacionIps && FUENTES_CON_FOTO.indexOf(it.fuente) >= 0) {
+    var corto = formatearMensaje_(it, true);
+    if (corto.length <= MAX_CARACTERES_PIE) mensaje = corto;
+  }
   var foto = (mensaje.length <= MAX_CARACTERES_PIE) ? fotoProducto_(it) : null;
   if (!foto) return enviarWhatsApp_(mensaje, enviarReal);
   if (!enviarReal) {
@@ -1121,7 +1196,8 @@ function persistirItems_(hoja, items, enviado) {
     it.fila = inicio + i;
     it.enviado = enviado;
     return [it.clave, it.fuente, it.numero, it.anio, it.titulo, it.tipo, it.fecha, it.url,
-      it.fechaDeteccion, it.nivel, it.coincidencia, enviado];
+      it.fechaDeteccion, it.nivel, it.coincidencia, enviado,
+      it.registroSanitario || "", it.loteSerial || "", it.titular || "", it.idDm || ""];
   });
   hoja.getRange(inicio, 1, filas.length, filas[0].length).setValues(filas);
 }

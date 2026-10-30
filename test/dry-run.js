@@ -65,6 +65,24 @@ const TARJETAS_MED = [
     fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12939" }),
   tarjeta({ numero: "357–2026", titulo: "DIALUX", slug: "dialux", fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12938" })
 ];
+// Paginas de detalle (HTML real del 30/10/2026, informe de Cowork), recortadas a lo que lee el bot.
+const DETALLE_DIALUX = '<html><body><dl class="inv-det-datos"><div class="inv-det-dato"><dt>Dirección</dt><dd class="inv-det-dato-direccion"><img alt="" src="/x.png"/><span>Dirección de Medicamentos y Productos Biológicos</span></dd></div>' +
+  '<div class="inv-det-dato"><dt>Categoría</dt><dd> Producto fraudulento — Sin registro sanitario </dd></div><div class="inv-det-dato"><dt>Fecha de publicación</dt><dd data-oe-type="date">16-10-2026</dd></div>' +
+  '<div class="inv-det-dato"><dt>No. de identificación interno</dt><dd>MA2610-195</dd></div><div class="inv-det-dato"><dt>Fuente</dt><dd>DENUNCIA</dd></div></dl>' +
+  '<div class="inv-det-hoja"><div class="inv-det-numero"> ALERTA No. 357-2026 </div><h1 class="inv-det-asunto ">DIALUX</h1>' +
+  '<table class="table inv-alerta-tabla"><thead><tr><th>Producto</th><th>Registro sanitario</th><th>Titular</th><th>Lote / Serial</th></tr></thead>' +
+  '<tbody><tr><td data-etiqueta="Producto">DIALUX</td><td data-etiqueta="Registro sanitario"> Sin registro sanitario </td><td data-etiqueta="Titular">—</td><td data-etiqueta="Lote / Serial">—</td></tr></tbody></table>' +
+  '<div class="inv-det-recomendaciones"><section class="inv-det-reco"><div class="inv-det-reco-titulo"><svg></svg><h4>Recomendaciones para la comunidad en general</h4></div><div class="inv-alerta-bloque inv-det-reco-texto"><p>1. Absténgase de adquirir el producto DIALUX.</p></div></section>' +
+  '<section class="inv-det-reco"><div class="inv-det-reco-titulo"><svg></svg><h4>Recomendaciones para IPS, EAPB y profesionales de la salud</h4></div><div class="inv-alerta-bloque inv-det-reco-texto"><p>En el evento de encontrar pacientes que consuman el producto DIALUX comercializado como suplemento dietario se debe indicar la suspensión del uso del producto.</p><p>1. Informar sobre los posibles riesgos para la salud que se pudieran presentar.</p><p>2. Notifique al Invima sobre la adquisición del producto mencionado con los datos suministrados por los pacientes sobre la dirección y medio de adquisición del producto fraudulento.</p></div></section></div>' +
+  '<object class="inv-det-documento" type="application/pdf" data="/alertas-sanitarias/12938/pdf"></object></div></body></html>';
+const DETALLE_PALACOS = '<html><body><dl class="inv-det-datos"><div class="inv-det-dato"><dt>Dirección</dt><dd class="inv-det-dato-direccion"><span>Dirección de Dispositivos Médicos y Otras Tecnologías</span></dd></div>' +
+  '<div class="inv-det-dato"><dt>Categoría</dt><dd> Producto </dd></div><div class="inv-det-dato"><dt>Programa de vigilancia</dt><dd>Tecnovigilancia</dd></div>' +
+  '<div class="inv-det-dato"><dt>Fecha de publicación</dt><dd data-oe-type="date">13-10-2026</dd></div><div class="inv-det-dato"><dt>No. de identificación interno</dt><dd>DI2609-00541</dd></div></dl>' +
+  '<div class="inv-det-hoja"><table class="table inv-alerta-tabla"><tbody><tr><td data-etiqueta="Producto">Cementos óseos con gentamicina Heraeus® PALACOS® R+G pro 40/60/80</td>' +
+  '<td data-etiqueta="Registro sanitario"> 2020DM-0003812-R1 </td><td data-etiqueta="Titular">—</td><td data-etiqueta="Lote / Serial">Todos los lotes</td></tr></tbody></table>' +
+  '<section class="inv-det-reco"><div class="inv-det-reco-titulo"><h4>Información para profesionales de la salud</h4></div><div class="inv-alerta-bloque inv-det-reco-texto"><p>1.Comuníquese con el importador.</p></div></section>' +
+  '<section class="inv-det-reco"><div class="inv-det-reco-titulo"><h4>Recomendaciones para IPS, EAPB y profesionales de la salud</h4></div><div class="inv-alerta-bloque inv-det-reco-texto"><p>1. Comuníquese con el importador, distribuidor o comercializador para precisar si existen recomendaciones específicas para la utilización del producto y que le indique el plan de acción a seguir; en caso de no lograrlo, póngase en contacto con el Invima.</p><p>2. Reporte al Programa Nacional de Tecnovigilancia del Invima los eventos e incidentes asociados a la utilización del dispositivo médico.</p></div></section></div></body></html>';
+
 const TARJETAS_ALI = [
   tarjeta({ dir: "da", numero: "360–2026", titulo: "Bebida energizante XYZ sin registro sanitario", slug: "bebida-xyz",
     fecha: "20-10-2026", clase: "Producto fraudulento", pdfId: "12960" })
@@ -157,6 +175,7 @@ function crearEntorno(opciones = {}) {
   const registro = [];
   const enviados = [];
   const urlsInvima = [];
+  const urlsDetalle = [];
   const hojas = {};
   const props = Object.assign({
     SS_ID: "ss-prueba", GA_API_URL: "https://7107.api.greenapi.com", GA_ID: "710722693364",
@@ -213,9 +232,14 @@ function crearEntorno(opciones = {}) {
           return { getResponseCode: () => estado.codigoGreen, getContentText: () => '{"idMessage":"X"}' };
         }
         urlsInvima.push(url);
-        if (/\.pdf$/i.test(url)) {
+        if (/\.pdf$|\/pdf$/i.test(url)) {
           const bytes = (estado.pdfs || {})[url];
           return { getResponseCode: () => (bytes ? 200 : 404), getBlob: () => ({ getBytes: () => bytes }) };
+        }
+        if (/\/alertas-sanitarias\/[a-z0-9_-]+$/i.test(url) && !/\/pdf$/.test(url) && !/\/page\//.test(url)) {
+          urlsDetalle.push(url);
+          const html = (estado.detalles || {})[url];
+          return { getResponseCode: () => (html ? 200 : 404), getContentText: () => html || "" };
         }
         const fuente = /direccion=da/.test(url) ? "ALI" : /direccion=dc/.test(url) ? "COS" : /dispositivos|direccion=dd/.test(url) ? "DM" : "MED";
         const nueva = url.match(/\/page\/(\d+)/);
@@ -242,7 +266,7 @@ function crearEntorno(opciones = {}) {
   vm.runInContext(CODIGO, contexto);
   // La encuesta de socializacion se prueba en test/encuesta.js y en las pruebas que pasan { encuesta: true }.
   if (!opciones.encuesta) contexto.ENCUESTA_ACTIVA = false;
-  return { g: contexto, registro, enviados, urlsInvima, hojas, props, estado, borrados, creados };
+  return { g: contexto, registro, enviados, urlsInvima, urlsDetalle, hojas, props, estado, borrados, creados };
 }
 
 function prueba(nombre, fn) {
@@ -377,6 +401,65 @@ prueba("fuentes ALI y COS: direccion da/dc, etiqueta propia y carga inicial por 
   assert.ok(!enviados.some((e) => String(e.cuerpo.message || "").includes("360-2026")), "lo de la carga inicial no se envia");
 });
 
+prueba("detalle de la alerta: tabla Producto, ficha, recomendacion para IPS y lineas del mensaje", () => {
+  const { g } = crearEntorno();
+  const it = g.aplicarDetalle_({ clave: "MED:AS:357-2026", fuente: "MED", tipoCodigo: "AS", numero: "357", anio: "2026", titulo: "DIALUX",
+    fecha: "2026-10-16", clasificacion: "Producto fraudulento", url: "https://www.invima.gov.co/alertas-sanitarias/12938/pdf", nivel: "BAJA" }, DETALLE_DIALUX);
+  assert.strictEqual(it.productoDetalle, "DIALUX");
+  assert.strictEqual(it.registroSanitario, "Sin registro sanitario");
+  assert.strictEqual(it.titular, "—");
+  assert.strictEqual(it.loteSerial, "—");
+  assert.strictEqual(it.idDm, "MA2610-195");
+  assert.strictEqual(it.fuenteInfo, "DENUNCIA");
+  assert.strictEqual(it.categoria, "Producto fraudulento — Sin registro sanitario");
+  assert.ok(it.recomendacionIps.startsWith("En el evento de encontrar pacientes que consuman el producto DIALUX"));
+  assert.ok(it.recomendacionIps.length <= 350 && it.recomendacionIps.endsWith("\u2026"), "recortada a MAX_RECOMENDACION");
+  const msg = g.formatearMensaje_(it);
+  assert.ok(msg.includes("\n\u{1F194} ID INVIMA: MA2610-195\n\u{1F9FE} Registro sanitario: Sin registro sanitario\n"), msg);
+  assert.ok(!msg.includes("Titular") && !msg.includes("Lote/Serial"), "los valores — no se muestran");
+  assert.ok(msg.includes("\u{1FA7A} *Recomendación INVIMA para IPS y profesionales:*\nEn el evento"), msg);
+  assert.ok(!g.formatearMensaje_(it, true).includes("Recomendación INVIMA"), "version corta sin recomendacion");
+  const dm = g.aplicarDetalle_({ fuente: "DM", tipoCodigo: "IS", numero: "149", anio: "2026", titulo: "Cementos óseos", estadoDm: "En seguimiento", nivel: "ALTA", url: "u" }, DETALLE_PALACOS);
+  assert.strictEqual(dm.programa, "Tecnovigilancia");
+  assert.strictEqual(dm.registroSanitario, "2020DM-0003812-R1");
+  assert.strictEqual(dm.loteSerial, "Todos los lotes");
+  const msgDm = g.formatearMensaje_(dm);
+  assert.ok(msgDm.includes("\u{1F194} ID INVIMA: DI2609-00541 · Estado: En seguimiento · Programa: Tecnovigilancia"), msgDm);
+  assert.ok(msgDm.includes("\u{1F9FE} Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes"), msgDm);
+});
+
+prueba("el lote y el titular del detalle entran en la clasificacion", () => {
+  const { g, hojas } = entornoListo();
+  hojas.Listado_Terapeutico.getRange(3, 1, 1, 8).setValues([["MED-0001", "Daratumumab 120 mg/mL", "Daratumumab", "Darzalex", "MED", "", "PJS0C02", "JANSSEN"]]);
+  const reglas = g.cargarReglas_(g.abrirHoja_());
+  const sinDetalle = g.clasificar_({ fuente: "MED", tipoCodigo: "AS", titulo: "FALSIFICACIÓN DE SOLUCIÓN INYECTABLE 120 MG/ML" }, reglas);
+  assert.strictEqual(sinDetalle.nivel, "MEDIA", "solo 'falsificacion' en el titulo");
+  const conLote = g.clasificar_({ fuente: "MED", tipoCodigo: "AS", titulo: "FALSIFICACIÓN DE SOLUCIÓN INYECTABLE 120 MG/ML", loteSerial: "PJS0C02", titular: "—" }, reglas);
+  assert.strictEqual(conLote.nivel, "ALTA");
+  assert.ok(conLote.coincidencia.startsWith("Lote PJS0C02 dispensado en HDV: Daratumumab 120 mg/mL"), conLote.coincidencia);
+  const conTitular = g.clasificar_({ fuente: "MED", tipoCodigo: "AS", titulo: "RETIRO DE PRODUCTO", titular: "JANSSEN CILAG S.A." }, reglas);
+  assert.ok(conTitular.coincidencia.includes("Laboratorio proveedor HDV: JANSSEN"), conTitular.coincidencia);
+});
+
+prueba("revisarAlertas lee el detalle solo de las alertas nuevas; cargaInicial no lo lee; se guarda en Historico", () => {
+  const { g, hojas, enviados, estado, urlsDetalle } = entornoListo();
+  estado.detalles = { "https://www.invima.gov.co/alertas-sanitarias/dialux": DETALLE_DIALUX };
+  estado.paginas = { MED: [PAGINA_NUEVA(TARJETAS_MED)], DM: [PAGINA_NUEVA(TARJETAS_DM)] };
+  g.cargaInicial();
+  assert.strictEqual(urlsDetalle.length, 0, "la carga inicial no abre detalles");
+  estado.paginas.MED = [PAGINA_NUEVA([tarjeta({ numero: "357–2026", titulo: "DIALUX", slug: "dialux", fecha: "16-10-2026", clase: "Producto fraudulento", pdfId: "12938" })]
+    .concat(TARJETAS_MED))];
+  hojas.Historico.d = hojas.Historico.d.filter((f) => f[0] !== "MED:AS:357-2026");
+  g.revisarAlertas();
+  assert.strictEqual(JSON.stringify(urlsDetalle), JSON.stringify(["https://www.invima.gov.co/alertas-sanitarias/dialux"]), "solo la nueva");
+  const msg = enviados.find((e) => String(e.cuerpo.message || e.cuerpo.caption || "").includes("357-2026")).cuerpo;
+  assert.ok((msg.message || msg.caption).includes("Registro sanitario: Sin registro sanitario"));
+  const fila = hojas.Historico.filas().find((f) => f.clave === "MED:AS:357-2026");
+  assert.strictEqual(fila.registro_sanitario, "Sin registro sanitario");
+  assert.strictEqual(fila.id_invima, "MA2610-195");
+  assert.strictEqual(fila.lote_serial, "—");
+});
+
 prueba("parsearListado_ sin items y clave de respaldo por URL", () => {
   const { g } = crearEntorno();
   assert.strictEqual(g.parsearListado_("<html>error</html>", "MED").length, 0);
@@ -411,7 +494,7 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
   assert.strictEqual(hojas.Reglas.d.length, 1 + g.PRECARGA.Reglas.length);
   assert.deepStrictEqual(hojas.Reglas.d[0], ["termino", "nivel", "motivo"]);
   assert.strictEqual(hojas.Config_Fuentes.d[2][1], "https://www.invima.gov.co/alertas-sanitarias?direccion=dd");
-  assert.strictEqual(hojas.Historico.d[0].length, 12);
+  assert.strictEqual(hojas.Historico.d[0].length, 16);
 });
 
 function entornoListo(opciones) {
@@ -814,6 +897,20 @@ prueba("enviarPruebaAlerta con encuesta: mensaje de prueba + encuesta", () => {
   const { g, enviados } = entornoListo({ encuesta: true });
   g.enviarPruebaAlerta();
   assert.deepStrictEqual(enviados.map((e) => e.url.split("/")[4]), ["sendMessage", "sendPoll"]);
+});
+
+prueba("si el texto con recomendacion no cabe como pie de foto, va la foto con la version corta", () => {
+  const e = entornoConAlertaMed();
+  e.estado.detalles = { "https://www.invima.gov.co/alertas-sanitarias/retiro": DETALLE_DIALUX.replace(/En el evento[^<]*/, "X".repeat(340)) };
+  e.estado.paginas = { MED: [PAGINA_NUEVA([tarjeta({ numero: "331–2026", titulo: "RETIRO DE LOTE BUTILBROMURO DE HIOSCINA", slug: "retiro",
+    fecha: "21-10-2026", clase: "Retiro de producto", pdfId: "12950" })])], DM: [ENVOLTURA([])] };
+  e.estado.pdfs = { "https://www.invima.gov.co/alertas-sanitarias/12950/pdf": pdfConFoto() };
+  e.g.MAX_CARACTERES_PIE = 900;
+  e.g.revisarAlertas();
+  const foto = e.enviados.find((x) => x.url.includes("sendFileByUpload"));
+  assert.ok(foto, "se envio con foto");
+  assert.ok(!foto.cuerpo.caption.includes("Recomendación INVIMA"), "sin recomendacion para caber");
+  assert.ok(foto.cuerpo.caption.includes("Registro sanitario"), "la ficha si va");
 });
 
 prueba("extraerJpegsPdf_ encuentra los JPEG incrustados y elige la foto mas grande", () => {

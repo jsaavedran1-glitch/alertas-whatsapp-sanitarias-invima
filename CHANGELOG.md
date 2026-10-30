@@ -2,6 +2,14 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [2.4.0] - 2026-10-30
+
+### Agregado
+- Análisis del sitio nuevo (informe de Cowork, 30/10/2026): sin RSS/JSON/API; fotos solo en el PDF; la página de detalle trae tabla *Producto* (registro sanitario, titular, lote/serial), ficha (ID interno, programa de vigilancia, categoría, fuente) y recomendaciones por audiencia.
+- `leerDetalle_`: de cada alerta nueva (no en carga inicial) se lee el detalle. Lote/serial, titular y producto entran en la clasificación (`Lote PJS0C02 dispensado en HDV`, `Laboratorio proveedor HDV: JANSSEN`).
+- Mensaje: `🆔 ID INVIMA · Estado · Programa`, `🧾 Registro sanitario · Lote/Serial · Titular` y `🩺 Recomendación INVIMA para IPS y profesionales` (≤ 350 caracteres). Si con la recomendación no cabe como pie de foto, la alerta MED va con foto y sin recomendación.
+- `Historico` guarda `registro_sanitario`, `lote_serial`, `titular` e `id_invima` (columnas M–P).
+
 ## [2.3.0] - 2026-10-30
 
 ### Agregado
