@@ -33,7 +33,8 @@ function cargar(codigoRespuesta) {
     }
   };
   vm.createContext(contexto);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "Codigo.gs"), "utf8"), contexto);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "Codigo.gs"), "utf8") + "\n" +
+    fs.readFileSync(path.join(__dirname, "..", "IA.gs"), "utf8"), contexto);
   return { ctx: contexto, llamadas };
 }
 

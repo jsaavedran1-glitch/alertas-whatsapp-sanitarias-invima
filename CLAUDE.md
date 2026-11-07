@@ -13,9 +13,10 @@ Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecal
 3. No usar `checkWhatsapp` ni `getContacts` (consumen cuota mensual).
 4. Error 466 (cuota excedida): registrar y no reintentar.
 5. Nunca mostrar, registrar ni versionar `GA_TOKEN`. Las credenciales solo en Propiedades del script.
-6. Los PDF solo se descargan para extraer la foto del producto (autorizado por el usuario el 20/10/2026): en el envío de alertas MED (`fotoProducto_`) y en `diagnosticarImagenesPdf()`. No analizar su texto. Los PDF de DM no traen fotos (solo la plantilla) y no se descargan al enviar.
+6. Los PDF se descargan para extraer la foto del producto (autorizado por el usuario el 20/10/2026): en el envío de alertas MED (`fotoProducto_`) y en `diagnosticarImagenesPdf()`. Desde el 2026-11-07 (autorizado por el usuario) `IA.gs` descarga también el PDF de cada alerta **nueva** y lo envía a la API de Claude para leer los datos del producto; fuera de eso, el código no analiza el texto del PDF. Los PDF de DM no traen fotos (solo la plantilla).
 7. Exclusivo HDV Villavicencio: nada de Puerto Carreño.
 8. Antes de ejecutar una función en el editor, confirmar en el selector que es la correcta (ver CLAUDE.md del bot de Farmacovigilancia: el dropdown a veces no aplica la selección con un clic). Para reemplazar el código completo en Monaco usar `monaco.editor.getModels()[0].setValue(...)`.
+9. `ANTHROPIC_API_KEY` la pega el usuario en Propiedades del script: nunca escribirla, mostrarla, registrarla ni versionarla (igual que `GA_TOKEN`).
 
 ## Estructura del sitio INVIMA (sitio nuevo, verificado 2026-10-22)
 
@@ -28,6 +29,8 @@ Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecal
 
 ## Convenciones de código
 
-- Un solo `Codigo.gs`, `var`/`function`, nombres y comentarios en español; funciones privadas con sufijo `_`.
+- `Codigo.gs` más `IA.gs` (dos archivos en el editor; comparten el ámbito global), `var`/`function`, nombres y comentarios en español; funciones privadas con sufijo `_`. Las pruebas cargan los dos archivos.
+- **IA (`IA.gs`, desde 2026-11-07):** lectura del PDF de cada alerta nueva con la API de Claude (`claude-sonnet-5-5`, *structured outputs* con `output_config.format`; Sonnet 5.5 rechaza `tool_choice` forzado). Completa la ficha vacía, suma `it.textoIa` a `clasificar_()` (el nivel nunca baja), agrega `🤖 *Motivo:*` al mensaje y las columnas `ia_motivo`, `ia_lotes`, `ia_tokens` al `Historico`. Codigo.gs la llama desde la revisión, `enviarPruebaAlerta`, el mensaje y el `Historico` (`enriquecerConIa_`, `lineaIa_`, `filaIa_`, `asegurarColumnasIa_`). Sin `ANTHROPIC_API_KEY` o con `IA_ACTIVA = NO` no actúa. Probar con `probarIa()` (no envía ni escribe en la hoja).
+- `IA.gs` está escrito solo en ASCII (tildes como escapes `\u`); al editarlo en Monaco se comparó el hash SHA-256 del texto del editor con el del repo.
 - Emojis con `String.fromCodePoint()` en el código `.gs`.
 - Toda lógica nueva debe cubrirse en `test/dry-run.js` (`npm test`, ejecutado por el workflow Node.js CI).

@@ -193,6 +193,7 @@ El detalle está en [Flujo de funcionamiento](#flujo-de-funcionamiento).
 | Archivo | Descripción |
 |---|---|
 | `Codigo.gs` | Lógica completa del bot. |
+| `IA.gs` | Lectura del PDF de cada alerta nueva con la API de Claude (segundo archivo del proyecto; ver [Lectura del PDF con IA](#lectura-del-pdf-con-ia-iags)). |
 | `appsscript.json` | Manifiesto: `America/Bogota`, V8, scopes mínimos (`script.external_request`, `spreadsheets`, `script.scriptapp`). |
 | `test/dry-run.js` | Pruebas en Node.js con servicios de Apps Script simulados y HTML real de ejemplo. Sin red ni credenciales. |
 | `test/encuesta.js` | Pruebas de la encuesta de socialización. |
@@ -212,8 +213,21 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Nuevo SF-HDV-SyD-InterSalud" (definido por el referente el 20/10/2026; el mismo grupo donde publica el bot de Tecnovigilancia). |
 | `GA_MEDIA_URL` | Recomendada. Servidor de medios de GREEN-API para `sendFileByUpload`: copiar el valor **mediaUrl** de la instancia en la consola de GREEN-API (en la instancia `710722693364` es `https://7107.api.greenapi.com`, verificado el 20/10/2026). Si falta, se intenta `GA_API_URL` con `media` en lugar de `api` y, si ese servidor no existe, el propio `GA_API_URL`. |
 | `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
+| `ANTHROPIC_API_KEY` | Opcional. Clave de la API de Claude para `IA.gs`. **Secreto: no versionar.** Sin ella el bot funciona igual que antes. |
+| `CLAUDE_MODEL` | Opcional. Modelo de `IA.gs` (por defecto `claude-sonnet-5-5`). |
+| `IA_ACTIVA` | Opcional. `NO` apaga la lectura con IA sin tocar el código. |
 
 `ULTIMO_AVISO_TECNICO` la crea el bot (fecha del último aviso de listado ilegible).
+
+## Lectura del PDF con IA (`IA.gs`)
+
+Desde el 2026-11-07, por cada alerta **nueva** (no en la carga inicial) el bot descarga el PDF y se lo envía a la API de Claude, que devuelve en JSON con esquema fijo (*structured outputs*; Sonnet 5.5 no admite `tool_choice` forzado) el producto, principios activos, marcas, registros sanitarios, lotes/seriales, titular o fabricante, tipo de problema y el motivo en una frase. Con eso:
+
+1. completa la ficha (registro sanitario, lote/serial, titular) cuando la página de detalle de INVIMA la trae vacía;
+2. suma esos datos (`it.textoIa`) al texto que `clasificar_()` cruza con `Listado_Terapeutico`, `Vigilancia` y `Reglas`. La prioridad la siguen decidiendo las reglas de la hoja y **nunca baja**: si con el PDF sale un nivel menor que con el título, se conserva el del título;
+3. agrega al mensaje la línea `🤖 *Motivo:* … _(lectura automática del PDF)_` (`MOSTRAR_MOTIVO_IA`) y guarda en `Historico` las columnas `ia_motivo`, `ia_lotes` e `ia_tokens`.
+
+Límites: 8 alertas por ejecución (`IA_MAX_POR_EJECUCION`), 150 s para la fase de IA, PDF de hasta 15 MB. Si la API falla (sin créditos, clave inválida, límite de uso, caída), la alerta sale sin IA y queda en el registro; la clave nunca se registra. Los PDF de INVIMA son públicos: a la API no sale ningún dato del HDV ni de pacientes. Costo aproximado: USD 0,02 por alerta. `probarIa()` lee con la IA la alerta más reciente de cada fuente y muestra el resultado en el registro, sin enviar ni escribir en la hoja.
 
 ## Despliegue y orden de ejecución inicial
 
@@ -284,6 +298,8 @@ Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (genera
 🆔 ID INVIMA: DI2609-00541 · Estado: En seguimiento
 🧾 Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes   (tal como aparece en la página de INVIMA; los valores vacíos no se muestran)
 
+🤖 *Motivo:* … _(lectura automática del PDF)_         (si IA.gs leyó el PDF)
+
 🏥 *Coincidencia HDV:*                                 (si aplica)
 • CEMENTO OSEO: CEMENTO OSEO ALTA VISCOCIDAD ... y 1 más
 • Vigilancia: GENTAMICINA
@@ -318,6 +334,7 @@ _Desarrollado por el QF Juan Pablo Saavedra_
 | `probarSinEnviar()` | Flujo completo simulado | No |
 | `instalarDisparadores()` | Recrea los disparadores | No |
 | `revisarAlertas()` | Función principal | **Sí** |
+| `probarIa()` (`IA.gs`) | Lee con la API de Claude el PDF de la alerta más reciente de cada fuente y muestra en el registro lo extraído y el mensaje que saldría | No |
 | `enviarPruebaAlerta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba (con la foto del producto si es MED), con una alerta ALTA real; no escribe en la hoja | **Sí** (1 mensaje) |
 | `resumenSemanal()` | Resumen semanal | **Sí** |
 | `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
@@ -334,4 +351,4 @@ npm test
 
 ## Alcance
 
-Exclusivo HDV E.S.E. (Villavicencio). Los PDF de medicamentos se descargan solo para extraer la foto del producto (autorizado por el referente el 20/10/2026); su texto no se analiza. Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.
+Exclusivo HDV E.S.E. (Villavicencio). Los PDF se descargan para extraer la foto del producto (autorizado por el referente el 20/10/2026) y, desde el 2026-11-07, para que `IA.gs` los lea con la API de Claude (autorizado por el referente); el bot sigue sin analizar el texto del PDF por su cuenta. Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.

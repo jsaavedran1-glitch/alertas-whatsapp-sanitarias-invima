@@ -14,7 +14,9 @@ const util = require("util");
 const assert = require("assert");
 
 const TOKEN = "TOKEN-SECRETO-DE-PRUEBA";
-const CODIGO = fs.readFileSync(path.join(__dirname, "..", "Codigo.gs"), "utf8");
+// Apps Script comparte el ambito global entre archivos: se cargan Codigo.gs e IA.gs (sin ANTHROPIC_API_KEY la IA no actua).
+const CODIGO = fs.readFileSync(path.join(__dirname, "..", "Codigo.gs"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "IA.gs"), "utf8");
 
 // ---------------------------------------------------------------------
 // HTML de ejemplo (marcado real observado con volcarMuestraHtml)
@@ -133,6 +135,9 @@ const DM_FILAS = [
 class HojaFalsa {
   constructor(nombre) { this.nombre = nombre; this.d = []; }
   getLastRow() { return this.d.length; }
+  // Una hoja nueva de Google Sheets trae 26 columnas (asegurarColumnasIa_ de IA.gs las amplia si faltan).
+  getMaxColumns() { return Math.max(26, ...this.d.map((f) => f.length)); }
+  insertColumnsAfter() {}
   getRange(r, c, nr = 1, nc = 1) {
     const h = this;
     const rango = {
@@ -215,6 +220,7 @@ function crearEntorno(opciones = {}) {
     Logger: { log: (...a) => registro.push(util.format(...a)) },
     Utilities: {
       sleep: () => {},
+      base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString("base64"),
       newBlob: (bytes, tipo, nombre) => ({
         bytes, tipo, nombre,
         getDataAsString: () => Buffer.from(bytes.map((b) => b & 255)).toString("latin1")
@@ -240,6 +246,12 @@ function crearEntorno(opciones = {}) {
             return { getResponseCode: () => estado.falloFoto, getContentText: () => "error" };
           }
           return { getResponseCode: () => estado.codigoGreen, getContentText: () => '{"idMessage":"X"}' };
+        }
+        // API de Claude (IA.gs): responde estado.respuestaIa ({ codigo, cuerpo }) y guarda la llamada.
+        if (/api\.anthropic\.com/.test(url)) {
+          (estado.llamadasIa = estado.llamadasIa || []).push({ headers: opts.headers, cuerpo: JSON.parse(opts.payload) });
+          const r = estado.respuestaIa || { codigo: 500, cuerpo: { error: "sin respuesta simulada" } };
+          return { getResponseCode: () => r.codigo, getContentText: () => (typeof r.cuerpo === "string" ? r.cuerpo : JSON.stringify(r.cuerpo)) };
         }
         urlsInvima.push(url);
         if (/\.pdf$|\/pdf$/i.test(url)) {
@@ -572,7 +584,8 @@ prueba("inicializarHoja crea pestanas y es idempotente", () => {
   assert.strictEqual(hojas.Reglas.d.length, 1 + g.PRECARGA.Reglas.length);
   assert.deepStrictEqual(hojas.Reglas.d[0], ["termino", "nivel", "motivo"]);
   assert.strictEqual(hojas.Config_Fuentes.d[2][1], "https://www.invima.gov.co/alertas-sanitarias?direccion=dd");
-  assert.strictEqual(hojas.Historico.d[0].length, 16);
+  assert.strictEqual(hojas.Historico.d[0].length, 19);
+  assert.deepStrictEqual(hojas.Historico.d[0].slice(16), ["ia_motivo", "ia_lotes", "ia_tokens"], "columnas de IA.gs");
 });
 
 function entornoListo(opciones) {
@@ -1165,6 +1178,48 @@ prueba("probarAcceso y volcarMuestraHtml (solo lectura)", () => {
   assert.ok(urlsInvima.includes("https://www.invima.gov.co/alertas-sanitarias?direccion=dd"));
   assert.ok(registro.some((l) => l.includes("MUESTRA 1") && l.includes("INFORMES")));
   assert.strictEqual(enviados.length, 0);
+});
+
+prueba("IA.gs: sin clave no llama a la API; con clave completa la ficha, el nivel no baja y la clave no se registra", () => {
+  const ascii = (t) => Array.from(Buffer.from(t, "latin1"));
+  const pdfUrl = "https://www.invima.gov.co/alertas-sanitarias/999/pdf";
+  const item = () => ({ clave: "MED:AS:999-2026", fuente: "MED", titulo: "Alerta sanitaria sobre: PRODUCTO DE PRUEBA",
+    url: pdfUrl, nivel: "ALTA", coincidencia: "prueba", registroSanitario: "", loteSerial: "", titular: "" });
+
+  const sin = entornoListo();
+  sin.estado.pdfs = { [pdfUrl]: ascii("%PDF-1.4\n") };
+  const r0 = sin.g.enriquecerConIa_([item()], sin.g.cargarReglas_(sin.g.abrirHoja_()));
+  assert.strictEqual(r0.analizadas, 0);
+  assert.ok(!sin.estado.llamadasIa, "sin ANTHROPIC_API_KEY no se llama a la API");
+
+  const e = entornoListo({ props: { ANTHROPIC_API_KEY: "sk-ant-prueba" } });
+  e.estado.pdfs = { [pdfUrl]: ascii("%PDF-1.4\n") };
+  const reglas = e.g.cargarReglas_(e.g.abrirHoja_());
+  e.estado.respuestaIa = { codigo: 200, cuerpo: { stop_reason: "end_turn", usage: { input_tokens: 3000, output_tokens: 200 },
+    content: [{ type: "text", text: JSON.stringify({ producto: "Producto de prueba", principios_activos: ["acetaminofen"],
+      marcas: ["Marca X"], registros_sanitarios: ["INVIMA 2020M-0000001"], lotes: ["L1", "L2"], titular_fabricante: ["Laboratorio Y"],
+      tipo_problema: "falsificacion", motivo: "Producto *falsificado* en circulacion", dirigida_a_ips: true }) }] } };
+  const it = item();
+  const r = e.g.enriquecerConIa_([it], reglas);
+  assert.strictEqual(r.analizadas, 1);
+  assert.strictEqual(it.registroSanitario, "INVIMA 2020M-0000001");
+  assert.strictEqual(it.loteSerial, "L1, L2");
+  assert.strictEqual(it.titular, "Laboratorio Y");
+  assert.strictEqual(it.nivel, "ALTA", "el nivel nunca baja con la IA");
+  assert.ok(e.g.lineaIa_(it).startsWith(String.fromCodePoint(0x1F916) + " *Motivo:* Producto falsificado en circulacion"), e.g.lineaIa_(it));
+  assert.deepStrictEqual(Array.from(e.g.filaIa_(it)), ["Producto falsificado en circulacion", "L1; L2", "3000/200 claude-sonnet-5-5"]);
+  const llamada = e.estado.llamadasIa[0];
+  assert.strictEqual(llamada.headers["x-api-key"], "sk-ant-prueba");
+  assert.strictEqual(llamada.cuerpo.output_config.format.type, "json_schema");
+  assert.strictEqual(llamada.cuerpo.messages[0].content[0].type, "document");
+  assert.ok(!("tool_choice" in llamada.cuerpo), "Sonnet 5.5 no admite tool_choice forzado");
+
+  e.estado.respuestaIa = { codigo: 401, cuerpo: "invalid x-api-key sk-ant-prueba" };
+  const it2 = item();
+  const r2 = e.g.enriquecerConIa_([it2], reglas);
+  assert.strictEqual(r2.errores, 1);
+  assert.strictEqual(it2.registroSanitario, "", "sin resultado la ficha queda igual");
+  assert.ok(!e.registro.join("\n").includes("sk-ant-prueba"), "la clave no aparece en el registro");
 });
 
 console.log("\nOK: dry run completo, sin llamadas a APIs externas.");

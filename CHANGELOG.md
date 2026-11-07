@@ -2,6 +2,17 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [3.0.0] - 2026-11-07
+
+### Agregado
+- **`IA.gs`: lectura del PDF de cada alerta nueva con la API de Claude** (`claude-sonnet-5-5`, salida JSON con esquema fijo). Extrae producto, principios activos, marcas, registros sanitarios, lotes/seriales, titular, tipo de problema y motivo. Completa la ficha cuando la página de detalle la trae vacía, suma esos datos al cruce de `clasificar_()` con `Listado_Terapeutico`, `Vigilancia` y `Reglas` (el nivel nunca baja), agrega `🤖 *Motivo:*` al mensaje y guarda `ia_motivo`, `ia_lotes` e `ia_tokens` en `Historico`. Propiedades `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `IA_ACTIVA`. Máximo 8 alertas y 150 s por ejecución; unos USD 0,02 por alerta. Si la API falla, la alerta sale sin IA.
+- `probarIa()`: lee con la IA la alerta más reciente de cada fuente, sin enviar ni escribir en la hoja.
+- Prueba de `IA.gs` en `test/dry-run.js` con la API simulada (sin clave no llama; con clave completa la ficha, el nivel no baja, la clave no se registra).
+
+### Cambiado
+- `Codigo.gs` llama a `IA.gs` en la revisión (no en la carga inicial), en `enviarPruebaAlerta`, en el mensaje (línea del motivo; el pie de foto corto omite el motivo y la recomendación) y al escribir el `Historico` (3 columnas nuevas).
+- Las pruebas cargan `Codigo.gs` e `IA.gs`; la hoja simulada tiene `getMaxColumns()` e `insertColumnsAfter()`.
+
 ## [2.5.0] - 2026-10-30
 
 ### Agregado

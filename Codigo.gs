@@ -9,6 +9,7 @@
 // Operacion: revisarAlertas() y resumenSemanal() (por disparador). Cada alerta individual va
 // seguida de una encuesta de socializacion (ver ENCUESTA_ACTIVA / OPCIONES_ENCUESTA).
 // Diagnostico (sin WhatsApp): probarAcceso(), volcarMuestraHtml(), vistaPrevia(), diagnosticarImagenesPdf().
+// IA (archivo IA.gs): lectura del PDF de cada alerta nueva con la API de Claude; prueba con probarIa().
 // =====================================================================
 
 var TZ = "America/Bogota";
@@ -93,7 +94,7 @@ var REGEX_PDF_LISTADO = /ckfinder\/userfiles\/files\/(?:ALERTAS|INFORMES)[^"']+\
 var ENCABEZADOS = {
   Config_Fuentes: ["fuente", "url", "activa"],
   Historico: ["clave", "fuente", "numero", "anio", "titulo", "tipo", "fecha_publicada", "url_pdf",
-    "fecha_deteccion", "nivel", "coincidencia", "enviado", "registro_sanitario", "lote_serial", "titular", "id_invima"],
+    "fecha_deteccion", "nivel", "coincidencia", "enviado", "registro_sanitario", "lote_serial", "titular", "id_invima", "ia_motivo", "ia_lotes", "ia_tokens"],
   Listado_Terapeutico: ["codigo", "descripcion", "principio_activo", "marca", "tipo", "subgrupo", "lote", "laboratorio"],
   Reglas: ["termino", "nivel", "motivo"],
   Vigilancia: ["principio_activo", "motivo"],
@@ -232,6 +233,7 @@ function enviarPruebaAlerta() {
     Logger.log("No se pudo leer ninguna alerta de INVIMA; no se envia nada.");
     return;
   }
+  enriquecerConIa_([candidata], reglas);
   candidata.nivel = "ALTA";
   Logger.log("Enviando prueba a GA_CHAT_ID = %s con la alerta %s", PropertiesService.getScriptProperties().getProperty("GA_CHAT_ID"), candidata.clave);
   var mensaje = emoji_(0x1F9EA) + " *MENSAJE DE PRUEBA* (no es una alerta nueva)\n\n" + formatearMensaje_(candidata);
@@ -317,6 +319,9 @@ function ejecutar_(modo) {
         if (modo.nombre !== "CARGA" && nuevosPagina < items.length) break;
       }
     });
+
+    // IA.gs: lectura del PDF con la API de Claude (completa la ficha; el nivel solo puede subir).
+    if (modo.nombre !== "CARGA") enriquecerConIa_(nuevos, reglas);
 
     var hist = ss.getSheetByName("Historico");
     if (modo.nombre === "CARGA") {
@@ -784,7 +789,8 @@ function laboratoriosDe_(texto) {
 // MEDIA: termino MEDIA, tipo "Informe de seguridad" o laboratorio proveedor del HDV. BAJA: el resto.
 function clasificar_(it, reglas) {
   // Titulo mas, si se leyo el detalle, producto, lote/serial y titular (sin los valores vacios "—").
-  var extra = [it.productoDetalle, it.loteSerial, it.titular].filter(function(x) { return x && x !== "\u2014"; }).join(" ");
+  // it.textoIa: producto, principios activos, marcas, registros, lotes y titular leidos del PDF (IA.gs).
+  var extra = [it.productoDetalle, it.loteSerial, it.titular, it.textoIa].filter(function(x) { return x && x !== "\u2014"; }).join(" ");
   var t = normTermino_(it.titulo + " " + extra);
   var tLote = normalizar_(it.titulo + " " + extra); // los lotes se comparan sin singularizar
   var coincidencias = [];
@@ -927,7 +933,7 @@ function lineasSinNovedades_() {
   ];
 }
 
-// sinRecomendacion: version mas corta (sin la recomendacion para IPS) cuando el texto completo no cabe
+// sinRecomendacion: version mas corta (sin la recomendacion para IPS ni el motivo de la IA) cuando el texto completo no cabe
 // como pie de foto.
 function formatearMensaje_(it, sinRecomendacion) {
   var lineas = [
@@ -946,6 +952,8 @@ function formatearMensaje_(it, sinRecomendacion) {
   if (valorDetalle_(it.loteSerial)) ficha.push("Lote/Serial: " + it.loteSerial);
   if (valorDetalle_(it.titular)) ficha.push("Titular: " + it.titular);
   if (ficha.length > 0) lineas.push(emoji_(E.FICHA) + " " + ficha.join(" · "));
+  var motivoIa = sinRecomendacion ? "" : lineaIa_(it); // IA.gs
+  if (motivoIa) lineas.push(motivoIa);
   if (it.coincidencia) {
     lineas.push("", emoji_(E.HDV) + " *Coincidencia HDV:*");
     it.coincidencia.split("; ").forEach(function(c) { lineas.push("• " + c); });
@@ -990,8 +998,9 @@ function enviarWhatsApp_(mensaje, enviarReal) {
 // PDF) con el texto al pie (sendFileByUpload). Si no hay foto, el texto es muy largo o el envio de la
 // foto falla por otra causa que no sea el 466, se envia como texto. Cuenta como un solo mensaje.
 function enviarAlerta_(mensaje, it, enviarReal) {
-  // Si el texto completo no cabe como pie de foto, se prefiere la foto sin la recomendacion para IPS.
-  if (mensaje.length > MAX_CARACTERES_PIE && it.recomendacionIps && MOSTRAR_RECOMENDACION_IPS && FUENTES_CON_FOTO.indexOf(it.fuente) >= 0) {
+  // Si el texto completo no cabe como pie de foto, se prefiere la foto sin la recomendacion para IPS ni el motivo de la IA.
+  if (mensaje.length > MAX_CARACTERES_PIE && ((it.recomendacionIps && MOSTRAR_RECOMENDACION_IPS) || lineaIa_(it)) &&
+      (FUENTES_CON_FOTO.indexOf(it.fuente) >= 0 || (it.fotos && it.fotos.length > 0))) {
     var corto = formatearMensaje_(it, true);
     if (corto.length <= MAX_CARACTERES_PIE) mensaje = corto;
   }
@@ -1254,13 +1263,14 @@ function yaRegistrada_(claves, it) {
 
 function persistirItems_(hoja, items, enviado) {
   if (items.length === 0) return;
+  asegurarColumnasIa_(hoja); // IA.gs: columnas ia_motivo, ia_lotes e ia_tokens
   var inicio = hoja.getLastRow() + 1;
   var filas = items.map(function(it, i) {
     it.fila = inicio + i;
     it.enviado = enviado;
     return [it.clave, it.fuente, it.numero, it.anio, it.titulo, it.tipo, it.fecha, it.url,
       it.fechaDeteccion, it.nivel, it.coincidencia, enviado,
-      it.registroSanitario || "", it.loteSerial || "", it.titular || "", it.idDm || ""];
+      it.registroSanitario || "", it.loteSerial || "", it.titular || "", it.idDm || ""].concat(filaIa_(it));
   });
   hoja.getRange(inicio, 1, filas.length, filas[0].length).setValues(filas);
 }
