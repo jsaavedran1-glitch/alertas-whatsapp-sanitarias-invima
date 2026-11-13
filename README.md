@@ -35,7 +35,7 @@ De la publicación de INVIMA a la evidencia de socialización en los servicios d
 flowchart LR
     INV["INVIMA<br/>invima.gov.co/alertas-sanitarias<br/>MED (dm) y DM (dd)"] -->|"lectura HTML<br/>6, 10, 14 y 18 h"| BOT["Bot Apps Script<br/>alertas-sanitarias-invima-hdv"]
     HOJA[("Hoja de control<br/>Listado_Terapeutico · Vigilancia<br/>Reglas · Historico · Log")] <-->|"reglas / registro"| BOT
-    BOT -->|"GREEN-API<br/>instancia 710722693364"| WA["Grupo WhatsApp<br/>Nuevo SF-HDV-SyD-InterSalud"]
+    BOT -->|"GREEN-API<br/>instancia 710722693364"| WA["Grupo WhatsApp<br/>Farmacovigilancia HDV"]
     WA --> SERV["Servicios asistenciales<br/>leen, verifican y socializan"]
     SERV -->|"votan la encuesta<br/>Sí / No"| WA
     SERV -.->|"❓ Dudas: wa.me"| QF["QF referente<br/>Servicio Farmacéutico"]
@@ -210,7 +210,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | `GA_API_URL` | URL base de la instancia GREEN-API (p. ej. `https://7107.api.greenapi.com`). |
 | `GA_ID` | ID de la instancia (`710722693364`). |
 | `GA_TOKEN` | Token de la instancia. **Secreto: no versionar, no compartir.** |
-| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Nuevo SF-HDV-SyD-InterSalud" (definido por el referente el 20/10/2026; el mismo grupo donde publica el bot de Tecnovigilancia). |
+| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Farmacovigilancia HDV" (`120363427014560329@g.us`, desde el 13/11/2026; del 20/10 al 13/11/2026 fue "Nuevo SF-HDV-SyD-InterSalud"). |
 | `GA_MEDIA_URL` | Recomendada. Servidor de medios de GREEN-API para `sendFileByUpload`: copiar el valor **mediaUrl** de la instancia en la consola de GREEN-API (en la instancia `710722693364` es `https://7107.api.greenapi.com`, verificado el 20/10/2026). Si falta, se intenta `GA_API_URL` con `media` en lugar de `api` y, si ese servidor no existe, el propio `GA_API_URL`. |
 | `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
 | `ANTHROPIC_API_KEY` | Opcional. Clave de la API de Claude para `IA.gs`. **Secreto: no versionar.** Sin ella el bot funciona igual que antes. |
@@ -240,7 +240,7 @@ Límites: 8 alertas por ejecución (`IA_MAX_POR_EJECUCION`), 150 s para la fase 
    3. **`cargaInicial()`**: lee 5 páginas por fuente y llena el `Historico` con `enviado = CARGA_INICIAL`, **sin enviar mensajes**. Evita que el primer día se disparen alertas viejas. **Obligatorio antes de activar disparadores.**
    4. **`probarSinEnviar()`** (y, si quiere ver el formato con alertas ya registradas, **`vistaPrevia()`**): ejecuta todo el flujo y escribe los mensajes en el registro de ejecución (`[SIMULADO - no enviado]`), sin enviar ni escribir en `Historico`. Incluye el texto del resumen semanal.
    5. **`instalarDisparadores()`**: borra los disparadores del proyecto y crea los del bot.
-5. Pasar a producción: cambiar `GA_CHAT_ID` al grupo "Nuevo SF-HDV-SyD-InterSalud" (solo con autorización explícita del referente).
+5. Pasar a producción: cambiar `GA_CHAT_ID` al grupo "Farmacovigilancia HDV" (solo con autorización explícita del referente).
 
 ## Hoja de control
 

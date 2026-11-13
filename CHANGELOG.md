@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [3.0.1] - 2026-11-13
+
+### Cambiado
+- Grupo de producción: "Farmacovigilancia HDV" (`GA_CHAT_ID` = `120363427014560329@g.us`), en lugar de "Nuevo SF-HDV-SyD-InterSalud". Solo cambia la propiedad del script; el código no cambia.
+
 ## [3.0.0] - 2026-11-07
 
 ### Agregado
