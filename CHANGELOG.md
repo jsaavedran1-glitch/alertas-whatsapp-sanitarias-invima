@@ -2,6 +2,11 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [3.0.2] - 2026-11-13
+
+### Cambiado
+- Grupo de producción de vuelta en "Nuevo SF-HDV-SyD-InterSalud" (`GA_CHAT_ID` = `120363426937928040@g.us`) hasta el 30/11/2026. El 13/11, "Farmacovigilancia HDV" era el cuarto chat de noviembre de la instancia y GREEN-API respondió 466 desde la revisión de las 14:15. Quedaron sin enviar (`NO_ENVIADO_466` en `Historico`) DM 384-2026 y MED 385 a 393-2026. El 1/12/2026, con la cuota reiniciada, `GA_CHAT_ID` pasa a "Farmacovigilancia HDV". Solo cambia la propiedad del script; el código no cambia.
+
 ## [3.0.1] - 2026-11-13
 
 ### Cambiado

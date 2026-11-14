@@ -210,7 +210,7 @@ Configuración del proyecto → Propiedades de las secuencias de comandos:
 | `GA_API_URL` | URL base de la instancia GREEN-API (p. ej. `https://7107.api.greenapi.com`). |
 | `GA_ID` | ID de la instancia (`710722693364`). |
 | `GA_TOKEN` | Token de la instancia. **Secreto: no versionar, no compartir.** |
-| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Farmacovigilancia HDV" (`120363427014560329@g.us`, desde el 13/11/2026; del 20/10 al 13/11/2026 fue "Nuevo SF-HDV-SyD-InterSalud"). |
+| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Nuevo SF-HDV-SyD-InterSalud" (`120363426937928040@g.us`) hasta el 30/11/2026 y "Farmacovigilancia HDV" (`120363427014560329@g.us`) desde el 1/12/2026. El cambio del 13/11/2026 a "Farmacovigilancia HDV" se revirtió porque ese grupo era el cuarto chat del mes y el plan Developer de GREEN-API solo permite 3 por instancia (error 466). |
 | `GA_MEDIA_URL` | Recomendada. Servidor de medios de GREEN-API para `sendFileByUpload`: copiar el valor **mediaUrl** de la instancia en la consola de GREEN-API (en la instancia `710722693364` es `https://7107.api.greenapi.com`, verificado el 20/10/2026). Si falta, se intenta `GA_API_URL` con `media` en lugar de `api` y, si ese servidor no existe, el propio `GA_API_URL`. |
 | `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
 | `ANTHROPIC_API_KEY` | Opcional. Clave de la API de Claude para `IA.gs`. **Secreto: no versionar.** Sin ella el bot funciona igual que antes. |
