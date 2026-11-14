@@ -227,7 +227,7 @@ Desde el 2026-11-07, por cada alerta **nueva** (no en la carga inicial) el bot d
 2. suma esos datos (`it.textoIa`) al texto que `clasificar_()` cruza con `Listado_Terapeutico`, `Vigilancia` y `Reglas`. La prioridad la siguen decidiendo las reglas de la hoja y **nunca baja**: si con el PDF sale un nivel menor que con el título, se conserva el del título;
 3. agrega al mensaje la línea `🤖 *Motivo:* … _(lectura automática del PDF)_` (`MOSTRAR_MOTIVO_IA`) y guarda en `Historico` las columnas `ia_motivo`, `ia_lotes` e `ia_tokens`.
 
-Límites: 8 alertas por ejecución (`IA_MAX_POR_EJECUCION`), 150 s para la fase de IA, PDF de hasta 15 MB. Si la API falla (sin créditos, clave inválida, límite de uso, caída), la alerta sale sin IA y queda en el registro; la clave nunca se registra. Los PDF de INVIMA son públicos: a la API no sale ningún dato del HDV ni de pacientes. Costo aproximado: USD 0,02 por alerta. `probarIa()` lee con la IA la alerta más reciente de cada fuente y muestra el resultado en el registro, sin enviar ni escribir en la hoja.
+Límites: 30 alertas por ejecución (`IA_MAX_POR_EJECUCION`; 8 hasta el 13/11/2026), 150 s para la fase de IA, PDF de hasta 15 MB. Si la API falla (sin créditos, clave inválida, límite de uso, caída), la alerta sale sin IA y queda en el registro; la clave nunca se registra. Los PDF de INVIMA son públicos: a la API no sale ningún dato del HDV ni de pacientes. Costo aproximado: USD 0,02 por alerta. `probarIa()` lee con la IA la alerta más reciente de cada fuente y muestra el resultado en el registro, sin enviar ni escribir en la hoja.
 
 ## Despliegue y orden de ejecución inicial
 

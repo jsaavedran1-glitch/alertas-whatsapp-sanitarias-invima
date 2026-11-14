@@ -2,6 +2,12 @@
 
 Todas las fechas en hora de Colombia (America/Bogota).
 
+## [3.0.3] - 2026-11-13
+
+### Cambiado
+- `IA.gs`: la IA lee hasta 30 PDF por ejecución (`IA_MAX_POR_EJECUCION`, antes 8). El 13/11 llegaron 10 alertas en una revisión y MED 385-2026 y DM 384-2026 salieron sin lectura de la IA. El límite de tiempo de la fase de IA sigue en 150 s, así que si la API responde lento la IA se detiene antes del corte de 6 minutos de Apps Script. Unos USD 0,03 por alerta.
+- Prueba nueva en `test/dry-run.js`: con 31 alertas se leen 30 y la última queda sin IA.
+
 ## [3.0.2] - 2026-11-13
 
 ### Cambiado

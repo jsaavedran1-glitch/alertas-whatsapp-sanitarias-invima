@@ -1222,4 +1222,23 @@ prueba("IA.gs: sin clave no llama a la API; con clave completa la ficha, el nive
   assert.ok(!e.registro.join("\n").includes("sk-ant-prueba"), "la clave no aparece en el registro");
 });
 
+prueba("IA.gs: lee hasta 30 PDF por ejecucion (el 13/11/2026 llegaron 10 alertas y solo 8 tuvieron IA)", () => {
+  const pdfUrl = "https://www.invima.gov.co/alertas-sanitarias/998/pdf";
+  const e = entornoListo({ props: { ANTHROPIC_API_KEY: "sk-ant-prueba" } });
+  e.estado.pdfs = { [pdfUrl]: Array.from(Buffer.from("%PDF-1.4\n", "latin1")) };
+  e.estado.respuestaIa = { codigo: 200, cuerpo: { stop_reason: "end_turn", usage: { input_tokens: 3000, output_tokens: 200 },
+    content: [{ type: "text", text: JSON.stringify({ producto: "Suplemento", principios_activos: [], marcas: [], registros_sanitarios: [],
+      lotes: [], titular_fabricante: [], tipo_problema: "fraudulento", motivo: "Producto fraudulento sin registro", dirigida_a_ips: false }) }] } };
+  const items = Array.from({ length: 31 }, (_, k) => ({ clave: "MED:AS:" + (400 + k) + "-2026", fuente: "MED",
+    titulo: "Alerta sanitaria sobre: PRODUCTO FRAUDULENTO " + k, url: pdfUrl, nivel: "BAJA", coincidencia: "",
+    registroSanitario: "", loteSerial: "", titular: "" }));
+  const r = e.g.enriquecerConIa_(items, e.g.cargarReglas_(e.g.abrirHoja_()));
+  assert.strictEqual(e.g.IA_MAX_POR_EJECUCION, 30);
+  assert.strictEqual(r.analizadas, 30);
+  assert.strictEqual(e.estado.llamadasIa.length, 30);
+  assert.ok(items.slice(0, 30).every((it) => e.g.lineaIa_(it)), "las primeras 30 llevan el motivo");
+  assert.ok(!e.g.lineaIa_(items[30]), "la 31 queda sin IA");
+  assert.ok(e.registro.some((l) => l.includes("limite de la ejecucion alcanzado") && l.includes("1")));
+});
+
 console.log("\nOK: dry run completo, sin llamadas a APIs externas.");
