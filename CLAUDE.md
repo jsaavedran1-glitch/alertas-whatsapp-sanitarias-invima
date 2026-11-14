@@ -1,0 +1,36 @@
+# CLAUDE.md — Contexto operativo del proyecto
+
+Reglas para cualquier asistente de IA que continúe este repositorio.
+
+## Qué es
+
+Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`, cuenta `controldecalidadgases@hdv.gov.co`) que vigila las alertas sanitarias e informes de seguridad de INVIMA (medicamentos y dispositivos médicos) y publica las relevantes para el HDV E.S.E. (Villavicencio) en el grupo de WhatsApp vía GREEN-API. Proyecto hermano de `alertas-whatsapp-farmacovigilancia`; comparte la instancia GREEN-API `710722693364` con los bots de Farmacovigilancia, PROA y Tecnovigilancia.
+
+## Reglas de seguridad — NUNCA romper
+
+1. No enviar ningún mensaje real sin confirmación explícita del usuario. Las pruebas van al grupo "PRUEBA BOT" (`120363412506101174@g.us`, cambiando `GA_CHAT_ID`), nunca al grupo de producción. Producción: "Nuevo SF-HDV-SyD-InterSalud" (`120363426937928040@g.us`) hasta el 30/11/2026; "Farmacovigilancia HDV" (`120363427014560329@g.us`) desde el 1/12/2026. El cambio a "Farmacovigilancia HDV" del 13/11 se revirtió porque ese grupo era el cuarto chat de noviembre y GREEN-API respondió 466.
+2. Enviar solo a `GA_CHAT_ID`. Nunca a otro chatId. El plan Developer de GREEN-API permite 3 chats al mes por instancia (compartidos con los bots de Farmacovigilancia, PROA y Tecnovigilancia), se reinicia el día 1 de cada mes y cada grupo nuevo ocupa un cupo.
+3. No usar `checkWhatsapp` ni `getContacts` (consumen cuota mensual).
+4. Error 466 (cuota excedida): registrar y no reintentar.
+5. Nunca mostrar, registrar ni versionar `GA_TOKEN`. Las credenciales solo en Propiedades del script.
+6. Los PDF se descargan para extraer la foto del producto (autorizado por el usuario el 20/10/2026): en el envío de alertas MED (`fotoProducto_`) y en `diagnosticarImagenesPdf()`. Desde el 2026-11-07 (autorizado por el usuario) `IA.gs` descarga también el PDF de cada alerta **nueva** y lo envía a la API de Claude para leer los datos del producto; fuera de eso, el código no analiza el texto del PDF. Los PDF de DM no traen fotos (solo la plantilla).
+7. Exclusivo HDV Villavicencio: nada de Puerto Carreño.
+8. Antes de ejecutar una función en el editor, confirmar en el selector que es la correcta (ver CLAUDE.md del bot de Farmacovigilancia: el dropdown a veces no aplica la selección con un clic). Para reemplazar el código completo en Monaco usar `monaco.editor.getModels()[0].setValue(...)`.
+9. `ANTHROPIC_API_KEY` la pega el usuario en Propiedades del script: nunca escribirla, mostrarla, registrarla ni versionarla (igual que `GA_TOKEN`).
+
+## Estructura del sitio INVIMA (sitio nuevo, verificado 2026-10-22)
+
+- Desde el 22/10/2026 INVIMA usa un sitio Odoo: `https://www.invima.gov.co/alertas-sanitarias`, filtrado con `?direccion=` (`da` alimentos, `dm` medicamentos, `dd` dispositivos médicos, `dc` cosméticos) y `?tipo=alerta|informe`. Páginas: `/alertas-sanitarias/page/2?direccion=dm` (12 tarjetas por página). Las rutas viejas de `app.invima.gov.co/alertas/...` devuelven esa misma página sin filtrar.
+- Ítem: `<article class="inv-lst-tarjeta inv-dir--dm|dd">` con `inv-lst-cabeza` (dirección y número `358–2026`), `h2.inv-lst-tarjeta-titulo > a` (detalle `/alertas-sanitarias/<slug>`), `span.inv-lst-tag--alerta|--informe` y etiqueta de estado ("En seguimiento"), `inv-lst-fecha` (`dd-mm-aaaa · clasificación`, p. ej. "Producto fraudulento") y el PDF `/alertas-sanitarias/<id>/pdf`. Algunas alertas no traen número ni PDF.
+- La numeración de alertas e informes se conserva: las claves `FUENTE:AS|IS:NUM-AÑO` del `Historico` siguen valiendo. Sin número (p. ej. "Alerta sanitaria especial"), la clave es `FUENTE:AS:T:<título normalizado>:<aaaa-mm-dd>` y se reconoce lo ya registrado por fuente + título + fecha (`claveTitulo_`).
+- Todo el parseo vive en `parsearListado_(html, fuente)` → `parsearTarjetas_` (sitio nuevo). Se conserva el parseo Drupal anterior (`views-row`, `ckfinder`) por si INVIMA lo restablece. Si el marcado cambia, ajustar solo esas funciones y `test/dry-run.js`; diagnosticar con `probarAcceso()` e `inspeccionarSitioInvima()`.
+- Detalle `/alertas-sanitarias/<slug>` (analizado 30/10/2026, sin RSS/JSON/API): `table.inv-alerta-tabla` con `td[data-etiqueta="Producto|Registro sanitario|Titular|Lote / Serial"]`, `dl.inv-det-datos` (`dt`/`dd`: Dirección, Categoría, Programa de vigilancia, Fecha de publicación, No. de identificación interno, Fuente), `section.inv-det-reco > h4` por audiencia. Lo lee `leerDetalle_`/`aplicarDetalle_` solo para alertas nuevas. Las fotos del producto: primero el *Registro fotográfico* del detalle (PNG del sitio, `it.fotos`, enviadas con `sendFileByUrl`); los PDF del sitio nuevo las guardan en PNG y el bot solo extrae JPEG (regla 6).
+- `leerFuentes_` traduce las URL viejas de `Config_Fuentes` a las nuevas (`migrarUrlFuente_`). Fuentes: MED (`dm`), DM (`dd`), ALI (`da`) y COS (`dc`), ambas definidas pero inactivas porque no aplican al HDV (decisión del referente, 30/10/2026); una fuente nueva necesita fila en `Config_Fuentes`, entrada en `DIRECCION_FUENTE`/`etiquetaFuente_` y `cargaInicialFuente()` antes de activarla.
+
+## Convenciones de código
+
+- `Codigo.gs` más `IA.gs` (dos archivos en el editor; comparten el ámbito global), `var`/`function`, nombres y comentarios en español; funciones privadas con sufijo `_`. Las pruebas cargan los dos archivos.
+- **IA (`IA.gs`, desde 2026-11-07):** lectura del PDF de cada alerta nueva con la API de Claude (`claude-sonnet-5-5`, *structured outputs* con `output_config.format`; Sonnet 5.5 rechaza `tool_choice` forzado). Completa la ficha vacía, suma `it.textoIa` a `clasificar_()` (el nivel nunca baja), agrega `🤖 *Motivo:*` al mensaje y las columnas `ia_motivo`, `ia_lotes`, `ia_tokens` al `Historico`. Codigo.gs la llama desde la revisión, `enviarPruebaAlerta`, el mensaje y el `Historico` (`enriquecerConIa_`, `lineaIa_`, `filaIa_`, `asegurarColumnasIa_`). Sin `ANTHROPIC_API_KEY` o con `IA_ACTIVA = NO` no actúa. Probar con `probarIa()` (no envía ni escribe en la hoja).
+- `IA.gs` está escrito solo en ASCII (tildes como escapes `\u`); al editarlo en Monaco se comparó el hash SHA-256 del texto del editor con el del repo.
+- Emojis con `String.fromCodePoint()` en el código `.gs`.
+- Toda lógica nueva debe cubrirse en `test/dry-run.js` (`npm test`, ejecutado por el workflow Node.js CI).

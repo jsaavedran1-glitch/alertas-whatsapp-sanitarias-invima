@@ -33,7 +33,8 @@ function cargar(codigoRespuesta) {
     }
   };
   vm.createContext(contexto);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "Codigo.gs"), "utf8"), contexto);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "Codigo.gs"), "utf8") + "\n" +
+    fs.readFileSync(path.join(__dirname, "..", "IA.gs"), "utf8"), contexto);
   return { ctx: contexto, llamadas };
 }
 
@@ -52,7 +53,8 @@ const modoReal = { nombre: "REVISION", enviar: true, persistir: false };
   assert.strictEqual(ctx.preguntaEncuesta_(it),
     "\u{1F534} Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?");
   const opciones = ctx.opcionesEncuesta_().map((o) => o.optionName);
-  assert.strictEqual(opciones[0], "✅ Recibida y socializada en mi servicio");
+  assert.strictEqual(opciones[0], "✅ Sí");
+  assert.strictEqual(opciones[1], "❌ No");
   assert.ok(opciones.length >= 2 && opciones.length <= 12, "WhatsApp exige entre 2 y 12 opciones");
   assert.strictEqual(new Set(opciones).size, opciones.length, "las opciones deben ser distintas");
   console.log("OK pregunta: " + ctx.preguntaEncuesta_(it));

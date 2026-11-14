@@ -1,192 +1,354 @@
 # Alertas WhatsApp - Alertas sanitarias INVIMA HDV
 
-Bot de Google Apps Script del Servicio Farmacéutico del Hospital Departamental de Villavicencio E.S.E. (HDV). Revisa varias veces al día las **alertas sanitarias e informes de seguridad que publica INVIMA** (medicamentos y dispositivos médicos), decide cuáles son relevantes para el HDV y las publica en el grupo de WhatsApp vía [Green-API](https://green-api.com/en/), seguidas de una encuesta para que cada servicio confirme que socializó la información.
+Bot de Google Apps Script (`alertas-sanitarias-invima-hdv`) del Servicio Farmacéutico del Hospital Departamental de Villavicencio E.S.E. Revisa los listados de alertas sanitarias e informes de seguridad de INVIMA (medicamentos y dispositivos médicos), los clasifica según su relevancia para el HDV y publica las relevantes en el grupo de WhatsApp vía [GREEN-API](https://green-api.com/).
 
-A diferencia de los otros bots, este **no depende de un formulario**: funciona por reloj y lleva su propio histórico en una hoja de control.
+Proyecto hermano de [alertas-whatsapp-farmacovigilancia](https://github.com/jsaavedran1-glitch/alertas-whatsapp-farmacovigilancia): misma instancia GREEN-API (`710722693364`), Script Properties independientes.
 
-| Recurso | Enlace |
-|---|---|
-| Proyecto Apps Script | [alertas-sanitarias-invima-hdv](https://script.google.com/u/1/home/projects/1mKDd42COISvxqeunZtwUOYc025DG_ZqZSoDtcjeFQIhsw75xgb0TE1Za/edit) (independiente; cuenta `controldecalidadgases@hdv.gov.co`; archivo "Código") |
-| Fuentes INVIMA | [Medicamentos y productos biológicos](https://app.invima.gov.co/alertas/medicamentos-productos-biologicos) · [Dispositivos médicos](https://app.invima.gov.co/alertas/dispositivos-medicos-invima) |
-| Hoja de control | La indicada en la propiedad `SS_ID` |
-| Código en este repo | `Codigo.gs` (copia del proyecto vivo, sincronizada el 2026-10-20) |
-
-## Cómo funciona
-
-```mermaid
-flowchart TD
-    R["Reloj: 6, 10, 14 y 18 h"] --> A["revisarAlertas()"]
-    A --> B["Lee la hoja de control:<br/>Config_Fuentes, Reglas,<br/>Listado_Terapeutico, Vigilancia, Historico"]
-    B --> C["Descarga el listado de INVIMA<br/>MED y DM, hasta 3 páginas"]
-    C --> D{"¿Se pudo leer?"}
-    D -- No --> X["Aviso técnico al grupo<br/>máximo 1 por día"]
-    D -- Sí --> E["Separa las alertas nuevas<br/>(clave que no está en Historico)"]
-    E --> F["clasificar_(): ALTA, MEDIA o BAJA"]
-    F --> G{"Nivel"}
-    G -- BAJA --> H["Historico: RESUMEN_SEMANAL<br/>(sale el lunes en el resumen)"]
-    G -- "ALTA / MEDIA" --> I["Historico: PENDIENTE<br/>(antes de enviar, para no duplicar)"]
-    I --> J{"¿10 alertas o menos?"}
-    J -- Sí --> K["Una alerta por mensaje<br/>MED: foto del producto sacada del PDF"]
-    K --> L["Encuesta de socialización<br/>(sendPoll)"]
-    J -- No --> M["Un solo mensaje agrupado<br/>sin encuesta"]
-    L --> N["Grupo de WhatsApp"]
-    M --> N
-    K --> O["Historico: SI / ERROR / NO_ENVIADO_466"]
-    M --> O
-    O --> P["Log: una fila por fuente"]
-    S["Reloj: lunes 7 h"] --> T["resumenSemanal()<br/>conteo de la semana + lista de BAJA"]
-    T --> N
-
-    style R fill:#1b2a4a,color:#fff
-    style S fill:#1b2a4a,color:#fff
-    style N fill:#1b2a4a,color:#fff
-```
-
-Paso a paso de cada revisión (`revisarAlertas()`, a las 6, 10, 14 y 18 h, hora de Bogotá):
-
-1. **Bloqueo.** Toma un `LockService` para que dos ejecuciones no se crucen; si ya hay una en curso, se salta esta.
-2. **Lee la hoja de control:** fuentes activas, reglas de prioridad, Listado Terapéutico del HDV, principios en vigilancia y claves ya registradas en `Historico`.
-3. **Descarga el listado** de cada fuente de INVIMA (página 0, 1, 2...). Sigue a la página siguiente solo si toda la página era nueva; si encuentra alertas ya conocidas, se detiene. Si una fuente no se puede leer, envía un **aviso técnico** al grupo (como máximo uno por día) y sigue con las demás.
-4. **Identifica cada alerta** por una clave tipo `MED:AS:329-2026` (fuente : alerta o informe : número-año). Si la clave ya está en `Historico`, se ignora.
-5. **Clasifica** cada alerta nueva según el título (ver abajo).
-6. **Guarda antes de enviar.** Las BAJA quedan como `RESUMEN_SEMANAL`; las ALTA y MEDIA como `PENDIENTE`. Así, si la ejecución se corta, la próxima no las repite.
-7. **Envía.** Si son 10 o menos, va un mensaje por alerta, de mayor a menor prioridad, con 2 s entre mensajes. Las de medicamentos llevan como imagen la foto del producto sacada del PDF de INVIMA, con el texto al pie; si no hay foto o falla, va como texto. Después de cada alerta enviada va la **encuesta de socialización**. Si son más de 10, va un solo mensaje agrupado y sin encuestas.
-8. **Actualiza el estado** en `Historico` (`SI`, `ERROR` o `NO_ENVIADO_466`) y escribe una fila por fuente en `Log`. Si Green-API responde 466 (cupo agotado), no se reintenta y lo pendiente de esa ejecución queda como `NO_ENVIADO_466`.
-
-Cada **lunes a las 7 h**, `resumenSemanal()` envía el conteo de la semana por fuente y nivel, y la lista de las alertas BAJA (hasta 40) con su enlace.
-
-### Clasificación (prioridad)
-
-Se compara el **título** de la alerta, en mayúsculas, sin tildes y en singular, contra las pestañas de la hoja de control:
-
-| Nivel | Cuándo | Qué pasa |
-|---|---|---|
-| 🔴 **ALTA** | El título menciona un principio activo, marca o **lote dispensado** del `Listado_Terapeutico` del HDV, un principio de `Vigilancia` o un término ALTA de `Reglas` (p. ej. marcas comerciales de uso frecuente como BUSCAPINA) | Mensaje inmediato con "Coincidencia HDV" + encuesta |
-| 🟠 **MEDIA** | Sin coincidencias ALTA ni término BAJA, pero con un término MEDIA de `Reglas` (falsificación, lote, retiro, calidad...), es un **informe de seguridad** o nombra un **laboratorio proveedor** del HDV | Mensaje inmediato + encuesta |
-| ⚪ **BAJA** | Término BAJA de `Reglas` (comercio electrónico, suplementos, homeopáticos, CBD) o ninguna de las anteriores | Solo en el resumen semanal |
-
-Para ajustar la prioridad **no hay que tocar el código**: basta con editar las pestañas `Reglas`, `Listado_Terapeutico` y `Vigilancia`.
-
-### Ejemplo de alerta (ALTA, medicamento)
-
-Va como foto del producto con este texto al pie:
-
-```
-[INVIMA-MED] 🔴 *PRIORIDAD ALTA* · 💊 Medicamento
-*Alerta sanitaria No. 329-2026*
-
-📌 FALSIFICACIÓN DEL PRODUCTO BUSCAPINA® COMPOSITUM NF TABLETAS RECUBIERTAS LOTE F0537A
-📅 Detectada: 2026-10-20
-
-🏥 *Coincidencia HDV:*
-• BUSCAPINA COMPOSITUM: HIOSCINA+DIPIRONA 2.5G+20MG 5ML AMP (UT19959402-5)
-• BUSCAPINA: HIOSCINA BUTIL BROMURO 20MG/ML AMP (UT225064-7) y 1 más
-• Uso frecuente: BUSCAPINA
-
-📄 PDF: https://app.invima.gov.co/alertas/ckfinder/userfiles/files/...
-❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
-
-_Bot Alertas INVIMA · Servicio Farmacéutico HDV_
-```
-
-Inmediatamente después llega la encuesta.
+> **Estado: en operación.** `Codigo.gs` es la copia del proyecto vivo `alertas-sanitarias-invima-hdv` (sincronizada el 2026-10-20). Puesta en marcha: `inicializarHoja()` → `cargaInicial()` → `probarSinEnviar()` → `instalarDisparadores()`. Operación por disparador: `revisarAlertas()` (6, 10, 14 y 18 h) y `resumenSemanal()` (lunes 7 h).
 
 ## Encuesta de socialización
 
-Después de cada alerta enviada de forma individual, el bot envía al mismo grupo una encuesta de WhatsApp (`sendPoll` de Green-API, una sola respuesta):
+Después de cada alerta enviada de forma individual, el bot envía al mismo grupo una encuesta de WhatsApp (`sendPoll` de GREEN-API, una sola respuesta):
 
 ```
 🔴 Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?
-( ) ✅ Recibida y socializada en mi servicio
-( ) ⏳ Recibida, pendiente por socializar
+( ) ✅ Sí
+( ) ❌ No
 ```
 
 - El círculo de color es el nivel de la alerta (🔴 ALTA, 🟠 MEDIA); los informes de seguridad dicen "Informe de seguridad No. …".
 - WhatsApp exige al menos 2 opciones. Se configuran en `OPCIONES_ENCUESTA` (máximo 12, distintas entre sí); `ENCUESTA_ACTIVA = false` la apaga.
-- No se envía si la alerta falló, ni con el mensaje agrupado, ni en `probarSinEnviar()` (allí solo se registra). `enviarPruebaAlerta()` sí la envía, para verla en PRUEBA BOT.
+- No se envía si la alerta falló, ni con el mensaje agrupado (más de `MAX_MENSAJES` alertas en una ejecución), ni en `probarSinEnviar()` (allí solo se registra). `enviarPruebaAlerta()` sí la envía, para verlo en PRUEBA BOT.
+- Cuota: la instancia está en el plan Developer (gratis) de GREEN-API, que no limita mensajes sino **chats distintos por mes (3, contando entrantes; se reinicia el día 1)**. La encuesta va al mismo grupo que la alerta, así que no consume cupo de chats. Esta instancia es compartida con los bots de Farmacovigilancia, Tecnovigilancia y PROA y usa 2 de los 3 chats (grupo de producción y PRUEBA BOT): cualquier chat adicional, incluido alguien que le escriba al número del bot por privado, puede agotar el cupo y producir el error 466 hasta el día 1.
 - Si la encuesta falla, la alerta sigue marcada como enviada; si responde 466, se detienen los envíos siguientes de esa ejecución.
 - Las respuestas se ven en el propio WhatsApp; el bot no las lee ni las registra en la hoja.
 
+Pruebas locales: `npm test` (incluye `test/encuesta.js`, sin red ni credenciales).
+
+## Flujo de funcionamiento
+
+### 1. Vista general
+
+De la publicación de INVIMA a la evidencia de socialización en los servicios del HDV.
+
+```mermaid
+flowchart LR
+    INV["INVIMA<br/>invima.gov.co/alertas-sanitarias<br/>MED (dm) y DM (dd)"] -->|"lectura HTML<br/>6, 10, 14 y 18 h"| BOT["Bot Apps Script<br/>alertas-sanitarias-invima-hdv"]
+    HOJA[("Hoja de control<br/>Listado_Terapeutico · Vigilancia<br/>Reglas · Historico · Log")] <-->|"reglas / registro"| BOT
+    BOT -->|"GREEN-API<br/>instancia 710722693364"| WA["Grupo WhatsApp<br/>Farmacovigilancia HDV"]
+    WA --> SERV["Servicios asistenciales<br/>leen, verifican y socializan"]
+    SERV -->|"votan la encuesta<br/>Sí / No"| WA
+    SERV -.->|"❓ Dudas: wa.me"| QF["QF referente<br/>Servicio Farmacéutico"]
+    WA -.->|"Ver votos = evidencia"| COM["Comités de Farmacovigilancia<br/>y Tecnovigilancia"]
+    style WA fill:#1b2a4a,color:#fff
+    style HOJA fill:#dbe7f5,color:#1b2a4a
+```
+
+### 2. Revisión de alertas (`revisarAlertas`, cada disparador)
+
+```mermaid
+flowchart TD
+    T["Disparador diario<br/>6, 10, 14 y 18 h (±15 min)"] --> L{"LockService:<br/>¿otra ejecución en curso?"}
+    L -->|sí| FIN0["Se omite"]
+    L -->|no| F["Lee Config_Fuentes (MED, DM)"]
+    F --> P["Descarga la primera página de cada fuente"]
+    P --> PA["parsearListado_: título, tipo, número, fecha,<br/>clasificación, estado y PDF de cada tarjeta"]
+    PA -->|"0 ítems o HTTP ≠ 200"| AV["Log ERROR + aviso técnico<br/>[INVIMA] ⚠️ (máx. 1 por día)"]
+    PA --> K["Clave FUENTE:AS|IS:NÚMERO-AÑO<br/>(sin número: título normalizado)"]
+    K --> H{"¿Clave ya en Historico?"}
+    H -->|sí| SKIP["Se ignora"]
+    H -->|no| PG{"¿Toda la página era nueva?"}
+    PG -->|"sí (máx. 3 páginas)"| P2["Lee la página siguiente"] --> PA
+    PG -->|no| C["clasificar_ sobre el título"]
+    C -->|"🔴 ALTA / 🟠 MEDIA / ⚪ BAJA"| PEND["Historico = PENDIENTE<br/>(antes de enviar: idempotencia)"]
+    PEND --> N{"¿Más de 10 alertas?"}
+    N -->|no| IND["Envío individual (ALTA primero, 2 s entre mensajes)"]
+    N -->|sí| AGR["Un solo mensaje agrupado [INVIMA]<br/>sin foto ni encuesta"]
+    IND --> ENV["Ver 4. Envío de una alerta"]
+    ENV --> EST["Historico = SI / ERROR / NO_ENVIADO_466"]
+    AGR --> EST
+    EST --> LOG["Log: leídos, nuevos, enviados, estado"]
+```
+
+### 3. Clasificación (`clasificar_`)
+
+Se compara el **título** del listado (mayúsculas, sin tildes, palabras completas, tolerando plurales) contra la hoja de control:
+
+```mermaid
+flowchart TD
+    A["Título de la alerta"] --> B{"¿Lote dispensado en el HDV?<br/>(Listado_Terapeutico · lote)"}
+    B -->|sí| ALTA["🔴 ALTA"]
+    B -->|no| C{"¿Principio activo o marca del<br/>Listado_Terapeutico, Vigilancia<br/>(PROA, control especial) o regla ALTA<br/>(53 marcas de uso frecuente)?"}
+    C -->|sí| ALTA
+    C -->|no| D{"¿Término BAJA?<br/>(suplemento, homeopático, CBD,<br/>comercio electrónico)"}
+    D -->|sí| BAJA["⚪ BAJA"]
+    D -->|no| E{"¿Término MEDIA, informe de seguridad<br/>o laboratorio proveedor del HDV?"}
+    E -->|sí| MEDIA["🟠 MEDIA"]
+    E -->|no| BAJA
+    style ALTA fill:#c62828,color:#fff
+    style MEDIA fill:#ef6c00,color:#fff
+    style BAJA fill:#9e9e9e,color:#fff
+```
+
+La coincidencia que justifica el nivel va en el mensaje (`🏥 Coincidencia HDV`), p. ej. `Lote F0537A dispensado en HDV`, `Vigilancia: GENTAMICINA` (solo en medicamentos) o `Uso frecuente: BUSCAPINA`.
+
+### 4. Envío de una alerta al grupo
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Bot (Apps Script)
+    participant I as INVIMA (PDF)
+    participant G as GREEN-API
+    participant W as Grupo WhatsApp
+    alt Medicamento (MED) y texto ≤ 1.024 caracteres
+        B->>I: Descarga el PDF (solo para la foto)
+        I-->>B: PDF
+        B->>B: Extrae el JPEG más grande ≥ 15 KB<br/>(descarta logos y franjas de encabezado)
+        B->>G: sendFileByUpload (foto + texto al pie)
+        alt Foto falla (no 466) o el PDF no trae foto
+            B->>G: sendMessage (solo texto)
+        end
+    else Dispositivo médico (DM)
+        B->>G: sendMessage (solo texto)
+    end
+    G->>W: Alerta
+    opt Solo 🔴 ALTA y 🟠 MEDIA
+        B->>G: sendPoll "¿recibió y socializó esta información en su servicio?" ✅ Sí / ❌ No
+        G->>W: Encuesta
+    end
+    Note over B,G: HTTP 466 (cuota): se registra en Log,<br/>no se reintenta y se detienen los envíos de la ejecución
+```
+
+Mensaje que llega al grupo:
+
+```
+[foto del producto, solo MED]
+[INVIMA-MED] 🔴 *PRIORIDAD ALTA* · 💊 Medicamentos y productos biológicos
+*Alerta sanitaria No. 329-2026*
+
+📌 FALSIFICACIÓN DEL PRODUCTO BUSCAPINA® COMPOSITUM NF ... LOTE F0537A
+📅 Detectada: 20-10-2026
+
+🏥 *Coincidencia HDV:*
+• BUSCAPINA COMPOSITUM: HIOSCINA+DIPIRONA 2.5G+20MG 5ML AMP (...)
+• Uso frecuente: BUSCAPINA
+
+📄 PDF: https://www.invima.gov.co/alertas-sanitarias/12905/pdf
+❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
+
+_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_
+_Desarrollado por el QF Juan Pablo Saavedra_
+
+🔴 Alerta sanitaria No. 329-2026 (MED): ¿recibió y socializó esta información en su servicio?
+( ) ✅ Sí
+( ) ❌ No
+```
+
+### 5. Estados de cada alerta en `Historico` (columna `enviado`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> CARGA_INICIAL: cargaInicial() (histórico, sin enviar)
+    [*] --> PENDIENTE: nueva (🔴 / 🟠 / ⚪)
+    [*] --> RESUMEN_SEMANAL: ⚪ BAJA con ENVIAR_BAJA = false
+    PENDIENTE --> SI: GREEN-API 200
+    PENDIENTE --> ERROR: otro error de envío
+    PENDIENTE --> NO_ENVIADO_466: cuota agotada
+    RESUMEN_SEMANAL --> [*]: listada el lunes 7 h
+    SI --> [*]
+    ERROR --> [*]: revisión manual
+    NO_ENVIADO_466 --> [*]: revisión manual
+```
+
+Ninguna clave se reenvía: la alerta queda registrada **antes** de enviarse, así que un fallo nunca produce duplicados en el grupo. `ERROR` y `NO_ENVIADO_466` se revisan a mano.
+
+### 6. Calendario
+
+| Cuándo | Qué hace | ¿Escribe al grupo? |
+|---|---|---|
+| Diario 6, 10, 14 y 18 h | `revisarAlertas()`: revisa MED y DM | Solo si INVIMA publicó alertas desde la revisión anterior (🔴, 🟠 o ⚪), o el aviso técnico si INVIMA no responde (máx. 1 por día) |
+| Lunes 7 h | `resumenSemanal()`: conteo de la semana por fuente y nivel | Siempre (sin novedades: "✅ *Sin alertas sanitarias ni informes de seguridad nuevos reportados por el INVIMA*", con el detalle del monitoreo y las horas de revisión) |
+| Día 1 de cada mes | GREEN-API reinicia el cupo de chats del plan Developer | — |
+
+### 7. Responsables
+
+| Rol | Tarea |
+|---|---|
+| Bot | Lee INVIMA, clasifica, publica, registra en `Historico` y `Log`. No lee las respuestas de la encuesta. |
+| QF referente (Servicio Farmacéutico) | Mantiene `Listado_Terapeutico`, `Vigilancia` y `Reglas`; atiende las dudas (`wa.me`); revisa `ERROR`/`NO_ENVIADO_466`; consulta "Ver votos" para el comité. |
+| Servicios asistenciales | Leen la alerta, verifican el producto o lote en su servicio, socializan y responden la encuesta. |
+
+## Arquitectura
+
+- **Proyecto:** Apps Script independiente (standalone), propiedad de `controldecalidadgases@hdv.gov.co`. Sin clasp (misma convención que el bot de Farmacovigilancia): el código se copia de `Codigo.gs` al editor.
+- **Hoja de control:** Google Sheets indicada en `SS_ID`.
+- **Fuentes:** listado de [www.invima.gov.co/alertas-sanitarias](https://www.invima.gov.co/alertas-sanitarias) (sitio Odoo desde el 22/10/2026), filtrado por dirección: `?direccion=dm` (medicamentos) y `?direccion=dd` (dispositivos médicos). Cada página trae 12 tarjetas. En operación normal se lee la primera página y, solo si toda es nueva, la siguiente (`/page/2`, hasta 3 páginas), para no perder alertas cuando INVIMA publica muchas el mismo día. Las URL del sitio anterior (`app.invima.gov.co/alertas/...`) en `Config_Fuentes` se traducen solas.
+- **Disparadores:** `revisarAlertas` diario a las 6, 10, 14 y 18 h; `resumenSemanal` los lunes a las 7 h (America/Bogota, ±15 min).
+
+El detalle está en [Flujo de funcionamiento](#flujo-de-funcionamiento).
+
+## Archivos
+
+| Archivo | Descripción |
+|---|---|
+| `Codigo.gs` | Lógica completa del bot. |
+| `IA.gs` | Lectura del PDF de cada alerta nueva con la API de Claude (segundo archivo del proyecto; ver [Lectura del PDF con IA](#lectura-del-pdf-con-ia-iags)). |
+| `appsscript.json` | Manifiesto: `America/Bogota`, V8, scopes mínimos (`script.external_request`, `spreadsheets`, `script.scriptapp`). |
+| `test/dry-run.js` | Pruebas en Node.js con servicios de Apps Script simulados y HTML real de ejemplo. Sin red ni credenciales. |
+| `test/encuesta.js` | Pruebas de la encuesta de socialización. |
+| `package.json` | `npm test` ejecuta `test/dry-run.js` y `test/encuesta.js` (usado por el workflow Node.js CI). |
+| `CLAUDE.md` | Reglas operativas para asistentes de IA. |
+| `CHANGELOG.md` | Historial de cambios. |
+
+## Propiedades del script requeridas
+
+Configuración del proyecto → Propiedades de las secuencias de comandos:
+
+| Propiedad | Descripción |
+|---|---|
+| `GA_API_URL` | URL base de la instancia GREEN-API (p. ej. `https://7107.api.greenapi.com`). |
+| `GA_ID` | ID de la instancia (`710722693364`). |
+| `GA_TOKEN` | Token de la instancia. **Secreto: no versionar, no compartir.** |
+| `GA_CHAT_ID` | chatId del grupo destino (debe terminar en `@g.us`; el código bloquea cualquier otro). Durante las pruebas: grupo "PRUEBA BOT". En producción: grupo "Nuevo SF-HDV-SyD-InterSalud" (`120363426937928040@g.us`) hasta el 30/11/2026 y "Farmacovigilancia HDV" (`120363427014560329@g.us`) desde el 1/12/2026. El cambio del 13/11/2026 a "Farmacovigilancia HDV" se revirtió porque ese grupo era el cuarto chat del mes y el plan Developer de GREEN-API solo permite 3 por instancia (error 466). |
+| `GA_MEDIA_URL` | Recomendada. Servidor de medios de GREEN-API para `sendFileByUpload`: copiar el valor **mediaUrl** de la instancia en la consola de GREEN-API (en la instancia `710722693364` es `https://7107.api.greenapi.com`, verificado el 20/10/2026). Si falta, se intenta `GA_API_URL` con `media` en lugar de `api` y, si ese servidor no existe, el propio `GA_API_URL`. |
+| `SS_ID` | ID de la hoja de control (`1rN_yIfqk1388zqUBr-P0zfbTBiSVlDDl-D44INlXsgo`). |
+| `ANTHROPIC_API_KEY` | Opcional. Clave de la API de Claude para `IA.gs`. **Secreto: no versionar.** Sin ella el bot funciona igual que antes. |
+| `CLAUDE_MODEL` | Opcional. Modelo de `IA.gs` (por defecto `claude-sonnet-5-5`). |
+| `IA_ACTIVA` | Opcional. `NO` apaga la lectura con IA sin tocar el código. |
+
+`ULTIMO_AVISO_TECNICO` la crea el bot (fecha del último aviso de listado ilegible).
+
+## Lectura del PDF con IA (`IA.gs`)
+
+Desde el 2026-11-07, por cada alerta **nueva** (no en la carga inicial) el bot descarga el PDF y se lo envía a la API de Claude, que devuelve en JSON con esquema fijo (*structured outputs*; Sonnet 5.5 no admite `tool_choice` forzado) el producto, principios activos, marcas, registros sanitarios, lotes/seriales, titular o fabricante, tipo de problema y el motivo en una frase. Con eso:
+
+1. completa la ficha (registro sanitario, lote/serial, titular) cuando la página de detalle de INVIMA la trae vacía;
+2. suma esos datos (`it.textoIa`) al texto que `clasificar_()` cruza con `Listado_Terapeutico`, `Vigilancia` y `Reglas`. La prioridad la siguen decidiendo las reglas de la hoja y **nunca baja**: si con el PDF sale un nivel menor que con el título, se conserva el del título;
+3. agrega al mensaje la línea `🤖 *Motivo:* … _(lectura automática del PDF)_` (`MOSTRAR_MOTIVO_IA`) y guarda en `Historico` las columnas `ia_motivo`, `ia_lotes` e `ia_tokens`.
+
+Límites: 30 alertas por ejecución (`IA_MAX_POR_EJECUCION`; 8 hasta el 13/11/2026), 150 s para la fase de IA, PDF de hasta 15 MB. Si la API falla (sin créditos, clave inválida, límite de uso, caída), la alerta sale sin IA y queda en el registro; la clave nunca se registra. Los PDF de INVIMA son públicos: a la API no sale ningún dato del HDV ni de pacientes. Costo aproximado: USD 0,02 por alerta. `probarIa()` lee con la IA la alerta más reciente de cada fuente y muestra el resultado en el registro, sin enviar ni escribir en la hoja.
+
+## Despliegue y orden de ejecución inicial
+
+1. En [script.google.com](https://script.google.com) con `controldecalidadgases@hdv.gov.co`, abrir el proyecto `alertas-sanitarias-invima-hdv`.
+2. Mostrar `appsscript.json` (Configuración del proyecto) y pegar su contenido; pegar `Codigo.gs`. Guardar.
+3. Cargar las propiedades del script (tabla anterior), con `GA_CHAT_ID` = PRUEBA BOT.
+4. Ejecutar, en este orden, verificando en el selector la función antes de pulsar "Ejecutar":
+   1. **`inicializarHoja()`**: crea las pestañas con encabezados; precarga `Config_Fuentes` y `Reglas`. No modifica pestañas que ya tienen datos.
+   2. Cargar `Listado_Terapeutico` y `Vigilancia` en la hoja.
+   3. **`cargaInicial()`**: lee 5 páginas por fuente y llena el `Historico` con `enviado = CARGA_INICIAL`, **sin enviar mensajes**. Evita que el primer día se disparen alertas viejas. **Obligatorio antes de activar disparadores.**
+   4. **`probarSinEnviar()`** (y, si quiere ver el formato con alertas ya registradas, **`vistaPrevia()`**): ejecuta todo el flujo y escribe los mensajes en el registro de ejecución (`[SIMULADO - no enviado]`), sin enviar ni escribir en `Historico`. Incluye el texto del resumen semanal.
+   5. **`instalarDisparadores()`**: borra los disparadores del proyecto y crea los del bot.
+5. Pasar a producción: cambiar `GA_CHAT_ID` al grupo "Farmacovigilancia HDV" (solo con autorización explícita del referente).
+
 ## Hoja de control
 
-`inicializarHoja()` crea estas pestañas con sus encabezados (no toca las que ya tienen datos) y precarga fuentes y reglas:
-
-| Pestaña | Contenido | ¿Quién la edita? |
+| Pestaña | Columnas | Quién la llena |
 |---|---|---|
-| `Config_Fuentes` | `fuente`, `url`, `activa` (MED y DM) | Servicio Farmacéutico, si INVIMA cambia una ruta |
-| `Reglas` | `termino`, `nivel` (ALTA/MEDIA/BAJA), `motivo` | Servicio Farmacéutico |
-| `Listado_Terapeutico` | Productos del HDV: código, descripción, principio activo, marca, tipo (MED/DM), lote, laboratorio | Servicio Farmacéutico |
-| `Vigilancia` | Principios activos a vigilar aunque no estén en el listado | Servicio Farmacéutico |
-| `Historico` | Una fila por alerta detectada: clave, título, PDF, nivel, coincidencia y estado `enviado` | El bot |
-| `Log` | Una fila por fuente y ejecución: leídos, nuevos, enviados, estado, error | El bot |
+| `Config_Fuentes` | fuente, url, activa | Precargada: MED y DM activas; ALI (alimentos y bebidas, `?direccion=da`) y COS (cosméticos, aseo y plaguicidas, `?direccion=dc`) definidas pero con `activa` = `NO`: no aplican al HDV. Para activar una, correr antes `cargaInicialAlimentos()` / `cargaInicialCosmeticos()`. Editable. |
+| `Historico` | clave, fuente, numero, anio, titulo, tipo, fecha_publicada, url_pdf, fecha_deteccion, nivel, coincidencia, enviado, registro_sanitario, lote_serial, titular, id_invima | El bot. Las 4 últimas columnas vienen de la página de detalle (desde el 30/10/2026). |
+| `Listado_Terapeutico` | codigo, descripcion, principio_activo, marca, tipo (MED/DM), subgrupo, lote, laboratorio | Cargado desde `DTSUMINISTRO` (ver abajo). Editable. |
+| `Aux_Productos` | Productos distintos y pares producto–LoteSerial de `DTSUMINISTRO`, con laboratorio y lote separados | Fórmulas. No borrar: `Listado_Terapeutico` lee de aquí lote y laboratorio. |
+| `Reglas` | termino, nivel (ALTA/MEDIA/BAJA), motivo | Precargada: términos MEDIA/BAJA y 53 marcas comerciales de medicamentos de uso frecuente (ALTA, motivo "Uso frecuente"). Editable. |
+| `Vigilancia` | principio_activo, motivo | Precargada con antimicrobianos PROA y medicamentos de control especial del catálogo. Editable. |
+| `Log` | fecha, fuente, leidos, nuevos, enviados, estado, error | El bot. |
 
-Estados de `enviado` en `Historico`: `SI`, `PENDIENTE`, `ERROR`, `NO_ENVIADO_466` (cupo de Green-API agotado), `RESUMEN_SEMANAL` (BAJA) y `CARGA_INICIAL` (alertas viejas registradas sin enviar).
+### Listado Terapéutico de Medicamentos y Dispositivos Médicos (desde `DTSUMINISTRO`)
 
-## Configuración (Propiedades del script)
+- **codigo, descripcion, subgrupo:** productos distintos dispensados (pestaña `DTSUMINISTRO`, 1.212 productos: 503 MED, 709 DM).
+- **principio_activo (MED):** texto de `NombreProducto` antes de la concentración o forma farmacéutica, sin sales; combinaciones con `+` o `/` (p. ej. `PIPERACILINA/TAZOBACTAM`), que el bot separa en términos.
+- **principio_activo (DM):** nombre genérico del dispositivo (`CATETER`, `SONDA`, `SUTURA`…). **marca:** marcas comerciales reconocibles (`AQUACEL`, `PROLENE`, `BUSCAPINA`…).
+- **lote y laboratorio:** fórmulas (`BYROW`) sobre `Aux_Productos`, que separa `LoteSerial` (`LABORATORIO-LOTE-...`). Se actualizan solas si se reemplaza el contenido de `DTSUMINISTRO`. Los productos nuevos de un mes posterior sí deben agregarse como filas en `Listado_Terapeutico`.
+- El bot ignora lotes de menos de 5 caracteres o sin dígitos y prefijos genéricos de laboratorio (`GLOBAL`, `LIFE`, `AMERICAN`…; lista `LABORATORIOS_GENERICOS` en `Codigo.gs`).
 
-En el editor de Apps Script: **Configuración del proyecto → Propiedades del script**. Ninguna credencial va en el código: este repositorio es público.
+Valores de `enviado`: `SI`, `PENDIENTE` (se escribe antes de enviar), `ERROR`, `NO_ENVIADO_466`, `RESUMEN_SEMANAL` (BAJA), `CARGA_INICIAL`. Ninguna clave se reintenta: si queda `ERROR` o `NO_ENVIADO_466`, revisarla manualmente.
 
-| Propiedad | Obligatoria | Descripción |
-|---|---|---|
-| `SS_ID` | sí | ID de la hoja de control |
-| `GA_ID` | sí | ID de la instancia de Green-API (la misma de los otros bots) |
-| `GA_TOKEN` | sí | Token de la instancia (secreto; nunca aparece en registros ni en la hoja) |
-| `GA_API_URL` | sí | URL base de la API, ej. `https://7107.api.greenapi.com` |
-| `GA_CHAT_ID` | sí | chatId del grupo; si no termina en `@g.us`, el envío se bloquea |
-| `GA_MEDIA_URL` | no | Servidor para subir la foto; si falta, se deduce de `GA_API_URL` |
-| `ULTIMO_AVISO_TECNICO` | (la escribe el bot) | Fecha del último aviso técnico, para enviar máximo uno por día |
+## Reglas de negocio
 
-Para encontrar el chatId de un grupo sin enviar nada: alguien escribe `ID BOT` en el grupo y se ejecuta `buscarIdGrupo()`, que lo busca en los mensajes recibidos en las últimas 24 h.
+- **Clave única:** `FUENTE:TIPO:NUMERO-AÑO`, con TIPO `AS` (alerta sanitaria) o `IS` (informe de seguridad), p. ej. `MED:AS:330-2026`, `DM:IS:148-2026`. El número se extrae del nombre del PDF (`No_ #355-2026`). Si no hay número, la clave es `FUENTE:url_pdf` cuando el enlace es un PDF; si INVIMA enlaza otra cosa (p. ej. `ckfinder.html`, el 20/10/2026), es `FUENTE:AS:T:<título normalizado>`.
+- **La fecha del listado no es confiable** (alertas 2026 con fecha 2016-10-14): nunca se filtra por fecha.
+- **Página de detalle (sitio nuevo):** de cada alerta **nueva** (no en la carga inicial) el bot lee `/alertas-sanitarias/<slug>` y toma la tabla *Producto* (registro sanitario, titular, lote/serial), la ficha (`No. de identificación interno`, programa de vigilancia, categoría, fuente) y la sección *Recomendaciones para IPS, EAPB y profesionales de la salud* (se guarda; en el mensaje solo si `MOSTRAR_RECOMENDACION_IPS = true`). Lote/serial, titular y producto entran en la clasificación (un lote afectado que el HDV dispensó → 🔴 ALTA; un titular proveedor → 🟠 MEDIA). Si el detalle no responde, la alerta sale solo con los datos del listado. `LEER_DETALLE = false` lo desactiva. Análisis del sitio del 30/10/2026: no hay RSS, JSON ni API; las fotos del producto solo están en el PDF.
+- **Clasificación** (mayúsculas, sin tildes, por palabras completas, sobre el título y, si hay detalle, producto, lote/serial y titular):
+  - 🔴 **ALTA:** coincide con `principio_activo`, `marca` o un **lote dispensado** de `Listado_Terapeutico` (del mismo tipo MED/DM, o sin tipo), con `Vigilancia` (solo alertas de medicamentos: en un dispositivo el principio activo es un componente, p. ej. cemento óseo con gentamicina), o con una regla ALTA (p. ej. una marca comercial de uso frecuente: `Uso frecuente: OZEMPIC`). La coincidencia por lote se muestra primero: `Lote F0537A dispensado en HDV: ...`.
+  - ⚪ **BAJA:** contiene un término BAJA y no tiene coincidencias ALTA.
+  - 🟠 **MEDIA:** contiene un término MEDIA, es un informe de seguridad, o nombra un **laboratorio proveedor** del HDV (`Laboratorio proveedor HDV: GENFAR`).
+  - ⚪ **BAJA:** el resto. También se envía (`ENVIAR_BAJA`), sin encuesta.
+  - En el Listado Terapéutico y en Vigilancia se ignoran términos de menos de 4 caracteres (evita falsos positivos). En `Reglas` no hay mínimo (p. ej. `CBD`).
+  - Se toleran plurales (`CATÉTERES` coincide con `CATETER`).
+  - La coincidencia muestra un renglón por término encontrado, el más específico primero, con un producto de ejemplo: `ENDOTRAQUEAL: TUBO ENDOTRAQUEAL Nº 3.0 SIN NEUMO (UT1518020014356) y 18 más`.
+  - En `principio_activo` se pueden poner varios términos separados por `;` (p. ej. `PLACA DE OSTEOSINTESIS; PLACA BLOQUEADA`). Use términos específicos: una palabra suelta como `PLACA` o `BALON` coincide también con "placas de Petri" o "tubo con balón".
+  - La coincidencia es solo sobre el **título** del listado: si INVIMA nombra el lote únicamente dentro del PDF, no se detecta (el PDF solo se descarga para extraer la foto; su texto no se analiza).
+- **Envío:** todas las alertas nuevas (🔴 ALTA, 🟠 MEDIA y ⚪ BAJA) en la revisión en que se detectan, ALTA primero, 2 s entre mensajes, máximo 10 por ejecución; si hay más, un único mensaje agrupado `[INVIMA]`. Solo se envía lo que no estaba en `Historico`: lo que INVIMA publicó desde la revisión anterior. Decisión del referente del 22/10/2026; con `ENVIAR_BAJA = false` las BAJA vuelven a quedar solo para el resumen del lunes. La encuesta va solo después de ALTA y MEDIA (`ENCUESTA_EN_BAJA`).
+- **Contacto para dudas:** cada alerta termina con `❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408` (`CONTACTO_DUDAS`): el enlace abre el chat del QF, sin envío ni consumo de cuota.
+- **Listado ilegible** (HTTP ≠ 200 o 0 ítems en la primera página; el `Log` guarda título y texto de la página recibida): fila de error en `Log` y un aviso `[INVIMA] ⚠️ No se pudo leer el listado` como máximo una vez al día.
+- **Foto del producto:** si la página de detalle trae *Registro fotográfico* (imágenes PNG del sitio, cualquier categoría), la alerta se envía con la primera imagen y el texto al pie (`sendFileByUrl`: GREEN-API la toma de la URL de INVIMA). Si no hay galería, en medicamentos se intenta la foto JPEG del PDF (el JPEG más grande ≥ 15 KB, sin las franjas de encabezado) con el texto completo de la alerta al pie (`sendFileByUpload`, al servidor de medios `GA_MEDIA_URL` o, si no existe, el de `GA_API_URL` con `media` en lugar de `api`). Si no hay galería ni foto en el PDF, el texto pasa de 1.024 caracteres o el envío de la foto falla (salvo 466), sale como texto. Cuenta como un mensaje. Los PDF del sitio nuevo (30/10/2026) guardan las fotos del producto en PNG, que el bot no puede extraer; por eso la galería de la página es la fuente principal. Se desactiva con `FOTO_EN_ALERTAS = false`.
+- **GREEN-API:** solo `sendMessage`, `sendFileByUrl`, `sendFileByUpload` y `sendPoll` a `GA_CHAT_ID`, y `lastIncomingMessages` (lectura) en `buscarIdGrupo()`. No se usan `checkWhatsapp` ni `getContacts`. Ante HTTP 466 (cuota) se registra en `Log` y no se intenta ningún otro envío en esa ejecución.
 
-## Puesta en marcha (ya hecha)
+## Formato del mensaje
 
-`inicializarHoja()` → `cargaInicial()` (registra las alertas ya publicadas como `CARGA_INICIAL`, sin enviar) → `probarSinEnviar()` → `instalarDisparadores()` (borra los activadores del proyecto y crea los de las 6, 10, 14 y 18 h y el del lunes a las 7 h).
+Usa el formato de WhatsApp (`*negrita*`, `_cursiva_`, viñetas) y emojis (generados con `String.fromCodePoint`).
+
+```
+[INVIMA-DM] 🔴 *PRIORIDAD ALTA* · 🩺 Dispositivos médicos y otras tecnologías
+*Informe de seguridad No. 149-2026*
+
+📌 Cementos óseos con gentamicina Heraeus® ... PALACOS® R+G...
+📅 Publicada: 19-10-2026
+🆔 ID INVIMA: DI2609-00541 · Estado: En seguimiento
+🧾 Registro sanitario: 2020DM-0003812-R1 · Lote/Serial: Todos los lotes   (tal como aparece en la página de INVIMA; los valores vacíos no se muestran)
+
+🤖 *Motivo:* … _(lectura automática del PDF)_         (si IA.gs leyó el PDF)
+
+🏥 *Coincidencia HDV:*                                 (si aplica)
+• CEMENTO OSEO: CEMENTO OSEO ALTA VISCOCIDAD ... y 1 más
+• Vigilancia: GENTAMICINA
+
+📄 PDF: https://www.invima.gov.co/alertas-sanitarias/12905/pdf
+❓ Dudas: QF Juan Pablo Saavedra HDV · https://wa.me/573245844408
+
+_Bot Alertas INVIMA · Ecosistema de Vigilancia Digital del Servicio Farmacéutico HDV_
+_Desarrollado por el QF Juan Pablo Saavedra_
+```
+
+- Categorías con el nombre oficial de INVIMA: `💊 Medicamentos y productos biológicos`, `🩺 Dispositivos médicos y otras tecnologías`, `🍽️ Alimentos y bebidas`, `🧴 Cosméticos, aseo y plaguicidas`. Nivel: 🔴 ALTA, 🟠 MEDIA, ⚪ BAJA.
+- El título se muestra sin "Alerta sanitaria sobre:" (ya va en el encabezado).
+- La fecha se muestra como la publica INVIMA (`dd-mm-aaaa`), tomada de la página de detalle (*Publicada el …*) o, si no, del listado. Si el año no coincide con el de la alerta, se muestra `📅 Detectada: <fecha>`.
+- Con `MOSTRAR_RECOMENDACION_IPS = true` se agrega `🩺 Recomendación INVIMA para IPS y profesionales` (≤ 350 caracteres); si con ella el texto no cabe como pie de foto, la alerta de medicamentos sale con la foto y sin la recomendación.
+- El resumen semanal y el mensaje agrupado siguen el mismo estilo.
+
+## Cómo agregar fuentes o reglas
+
+- **Fuente nueva:** agregar una fila en `Config_Fuentes` (`fuente` corta en mayúsculas, p. ej. `COS`; `url` del listado, p. ej. `https://www.invima.gov.co/alertas-sanitarias?direccion=dc`; `activa` = `NO` mientras se carga). El prefijo del mensaje será `[INVIMA-COS]`. Ejecutar `cargaInicialFuente("COS")` para registrar su histórico sin enviarlo y después poner `activa` = `SI`. Para una dirección distinta de `da`/`dm`/`dd`/`dc` hay que agregarla también a `DIRECCION_FUENTE` y a `etiquetaFuente_` en `Codigo.gs`. Para desactivar una fuente: `activa` = `NO`.
+- **Regla nueva:** fila en `Reglas` con `termino`, `nivel` y, opcionalmente, `motivo` (se muestra en el mensaje, p. ej. `Uso frecuente: DOLEX`). Se aplica en la siguiente ejecución.
+- **Medicamento o dispositivo del HDV:** fila en `Listado_Terapeutico`. **Vigilancia:** fila en `Vigilancia`.
 
 ## Funciones
 
-| Función | ¿Envía algo? | Uso |
+| Función | Uso | ¿Envía WhatsApp? |
 |---|---|---|
-| `revisarAlertas()` | Sí | Revisión normal; la llama el reloj |
-| `resumenSemanal()` | Sí | Resumen del lunes; la llama el reloj |
-| `probarSinEnviar()` | **No** | Todo el flujo con los mensajes en el registro; no escribe en `Historico` |
-| `vistaPrevia()` | **No** | Muestra en el registro el mensaje de cada alerta de la página 0 |
-| `enviarPruebaAlerta()` | **Sí** | Envía como "MENSAJE DE PRUEBA" la primera alerta ALTA (con foto y encuesta); usar solo con PRUEBA BOT |
-| `inicializarHoja()`, `cargaInicial()` | **No** | Puesta en marcha |
-| `instalarDisparadores()` | No (recrea activadores) | Solo si hay que reinstalar los relojes |
-| `buscarIdGrupo()` | **No** | Encuentra el chatId de un grupo |
-| `probarAcceso()`, `volcarMuestraHtml()`, `diagnosticarImagenesPdf()` | **No** | Diagnóstico del acceso a INVIMA y de las fotos de los PDF |
+| `inicializarHoja()` | Crea pestañas y encabezados | No |
+| `cargaInicial(paginas = 5)` | Pobla `Historico` sin enviar. Lo publicado el mismo día no se registra: lo envía la revisión siguiente | No |
+| `cargaInicialFuente(fuente, paginas = 5)` | Carga inicial de una sola fuente nueva (p. ej. `"ALI"`), aunque esté con `activa` = `NO`; no toca las demás | No |
+| `cargaInicialAlimentos()`, `cargaInicialCosmeticos()` | Atajos de `cargaInicialFuente` para ALI y COS, ejecutables desde el selector del editor | No |
+| `probarSinEnviar()` | Flujo completo simulado | No |
+| `instalarDisparadores()` | Recrea los disparadores | No |
+| `revisarAlertas()` | Función principal | **Sí** |
+| `probarIa()` (`IA.gs`) | Lee con la API de Claude el PDF de la alerta más reciente de cada fuente y muestra en el registro lo extraído y el mensaje que saldría | No |
+| `enviarPruebaAlerta()` | Envía a `GA_CHAT_ID` un mensaje marcado como prueba (con la foto del producto si es MED), con una alerta ALTA real; no escribe en la hoja | **Sí** (1 mensaje) |
+| `resumenSemanal()` | Resumen semanal | **Sí** |
+| `vistaPrevia()` | Muestra en el registro el mensaje de cada alerta de la página 0, esté o no en el `Historico` | No |
+| `diagnosticarImagenesPdf()` | Recorre las alertas de `Historico` por lotes (≈4,5 min por ejecución; la siguiente continúa donde quedó), descarga cada PDF, extrae las imágenes JPEG y pone la foto candidata en la pestaña `Diag_Imagenes`. Al terminar registra cuántas alertas tienen foto por fuente y tipo | No |
+| `buscarIdGrupo()` | Muestra el `GA_CHAT_ID` del grupo donde alguien escribió `ID BOT` en las últimas 24 h (GREEN-API `lastIncomingMessages`, solo lectura; no usa `getContacts` ni `getChats` y no registra otros mensajes). El número del bot debe ser miembro del grupo | No |
+| `reiniciarDiagnosticoImagenes()` | Vacía `Diag_Imagenes` para repetir el diagnóstico desde cero | No |
+| `probarAcceso()`, `inspeccionarSitioInvima()`, `analizarSitioInvima()`, `volcarMuestraHtml()` | Diagnóstico del sitio INVIMA (`inspeccionarSitioInvima` resume enlaces, scripts y marcado del listado; `analizarSitioInvima` resume filtros, buscador, feeds, tarjetas por dirección y la página de detalle de una alerta) | No |
 
-## Cómo se actualiza el bot
-
-El editor de Apps Script **no** se sincroniza con GitHub. Para cambiar el bot:
-
-1. Si solo cambian prioridades, productos o fuentes, editar la hoja de control; no hace falta tocar el código.
-2. Para cambios de código, editar `Codigo.gs` en este repo y correr `npm test`.
-3. Copiar el cambio al editor (archivo "Código", con la cuenta `controldecalidadgases@hdv.gov.co`) y guardar con Ctrl+S. No hace falta publicar: los relojes usan siempre la última versión guardada.
-4. Probar con `probarSinEnviar()` y, si se quiere ver en WhatsApp, `enviarPruebaAlerta()` con `GA_CHAT_ID` en PRUEBA BOT.
-
-Al pegar texto con tildes o emojis, el editor a veces los daña. Los textos nuevos se escriben con escapes `\u` o con `emoji_()`.
-
-## Pruebas locales (sin red ni credenciales)
+## Pruebas locales
 
 ```bash
-npm test   # test/dry-run.js (acceso a INVIMA y número de alerta) + test/encuesta.js (encuesta)
+npm test
 ```
 
-## Green-API compartida: cuidado con el cupo de chats
+## Alcance
 
-La instancia de Green-API es la misma para los 4 bots del Servicio Farmacéutico y está en el plan Developer (gratis). Ese plan **no limita mensajes, sino chats distintos por mes: 3**, contando los que escriben al número del bot; el contador se reinicia el día 1. Hoy se usan 2 (grupo de producción y PRUEBA BOT). La encuesta va al mismo grupo, así que no gasta cupo. Si se escribe a un cuarto chat, o alguien le escribe por privado al número del bot, Green-API responde 466 y **los 4 bots** dejan de enviar hasta el día 1. El enlace de "Dudas" (wa.me) abre el chat con el número personal del QF, no con el del bot, así que no cuenta.
-
-| Bot | Qué lo dispara | Repositorio |
-|---|---|---|
-| Farmacovigilancia | Formulario FOREAM | [alertas-whatsapp-farmacovigilancia](https://github.com/jsaavedran1-glitch/alertas-whatsapp-farmacovigilancia) |
-| Tecnovigilancia | Formulario FOREIA001 | [alertas-whatsapp-tecnovigilancia](https://github.com/jsaavedran1-glitch/alertas-whatsapp-tecnovigilancia) |
-| PROA antimicrobianos | Formulario de antimicrobianos restringidos | [alertas-whatsapp-antimicrobianos](https://github.com/jsaavedran1-glitch/alertas-whatsapp-antimicrobianos) |
-| Alertas INVIMA | Reloj (4 revisiones diarias) | este repositorio |
-
-## Reglas
-
-- **Solo a grupos.** `llamarGreenApi_()` es la única salida hacia Green-API y bloquea cualquier destino que no termine en `@g.us`.
-- **Ninguna credencial en el código.** Todo vive en Propiedades del script; el token se oculta en registros y en la hoja.
-- **Sin duplicados.** Una alerta se registra en `Historico` antes de enviarse; no borrar filas de `Historico` (la alerta se volvería a enviar).
-- **Pruebas solo en PRUEBA BOT**, nunca en el grupo de producción.
+Exclusivo HDV E.S.E. (Villavicencio). Los PDF se descargan para extraer la foto del producto (autorizado por el referente el 20/10/2026) y, desde el 2026-11-07, para que `IA.gs` los lea con la API de Claude (autorizado por el referente); el bot sigue sin analizar el texto del PDF por su cuenta. Marco: Resolución 4816 de 2008 (tecnovigilancia), programa de farmacovigilancia, alertas sanitarias INVIMA.
